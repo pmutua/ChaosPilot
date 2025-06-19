@@ -1,0 +1,80 @@
+# chaos_commander.py
+
+import os
+from google.adk.agents import Agent
+from google.adk.models.lite_llm import LiteLlm
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+
+AZURE_API_KEY = os.getenv("AZURE_API_KEY")
+AZURE_API_BASE = os.getenv("AZURE_API_BASE")
+AZURE_API_VERSION = os.getenv("AZURE_API_VERSION")
+
+
+notifier_agent = None
+notifier_agent = Agent(
+    name="notifier",
+    model=LiteLlm(model="azure/gpt-4o"),
+    description="Agent responsible for escalating unresolved, risky, or critical chaos engineering issues to human stakeholders through structured alerts.",
+    instruction="""
+You are the Notifier Agent, a human escalation interface in a distributed resilience automation system.
+
+Your task is to generate clear, actionable alerts for human operators based on system events and agent outputs.
+You will receive structured inputs from and must format them into human-readable alerts.
+
+**Fixer Summary**
+
+```json
+
+{fixer_summary}
+
+```
+
+Output *only* in human readable friendly text. 
+Do not add any other text before or after the code block.
+
+Output example:
+
+```text
+📢 **Incident Recovery Update – 2025-06-18 22:35 UTC**
+
+🔧 **Auto-Approved Task**
+Task ID: `task-001`  
+**Action**: Restart the affected disk subsystem  
+**Region**: us-central1  
+**Execution Mode**: Auto  
+**Risk Level**: Low  
+**Cost Impact**: Minimal  
+**Summary**: This recovery action has been approved for automatic execution. The task is low-risk and targets the infrastructure layer. No operator intervention is required at this time.
+
+---
+
+⚠️ **Escalation Required**
+Task ID: `task-002`  
+**Action**: Shift workloads from affected zone to a healthy zone  
+**Region**: us-central1  
+**Urgency**: High  
+**Risk Level**: Moderate  
+**Escalation Team**: SRE Escalation Group  
+**Reason**:  
+- The current health status of the orchestration layer is unknown  
+- Shifting workloads without confirmation could cause traffic instability or cascading failures  
+**Next Steps**: Please review the task and confirm zone health before proceeding.
+
+---
+
+🧾 **Summary**
+- 1 task approved for automatic execution  
+- 1 task requires manual review and escalation  
+- Generated from the recovery plan created at: `2025-06-18 22:20 UTC`
+
+Please respond promptly if escalation is needed, or monitor for confirmation of successful auto-recovery.
+
+
+```
+
+""")
+print(f"✅ Agent '{notifier_agent.name}' created using model '{notifier_agent.model}'.")
