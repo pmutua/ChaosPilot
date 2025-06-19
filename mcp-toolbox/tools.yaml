@@ -13,12 +13,85 @@ tools:
       SELECT
         chaos_agent AS agent_id,
         COUNT(DISTINCT experiment_id) AS experiment_count,
-        ROUND(100.0 * SUM(CASE WHEN severity != 'CRITICAL' THEN 1 ELSE 0 END) / COUNT(*), 2) || '%' AS success_rate,
+        CASE 
+          WHEN COUNT(*) = 0 THEN '0%'
+          ELSE ROUND(100.0 * SUM(CASE WHEN severity != 'CRITICAL' THEN 1 ELSE 0 END) / COUNT(*), 2) || '%'
+        END AS success_rate,
         MAX(timestamp) AS last_updated
       FROM chaos_logs
       GROUP BY chaos_agent
-      ORDER BY last_updated DESC;
+      ORDER BY MAX(timestamp) DESC;
 
+  # ✅ New: Overall summary of all chaos events by severity and type
+  system_chaos_summary:
+    kind: sqlite-sql
+    source: logger-db
+    description: Aggregated view of all chaos logs in the system.
+    parameters: []
+    statement: |
+      SELECT
+        severity,
+        COUNT(*) AS count,
+        COUNT(DISTINCT chaos_agent) AS affected_agents,
+        COUNT(DISTINCT experiment_id) AS affected_experiments,
+        GROUP_CONCAT(DISTINCT region) AS involved_regions
+      FROM chaos_logs
+      GROUP BY severity
+      ORDER BY count DESC;
+
+
+  # ✅ New: Detect top recurring failure messages
+  frequent_failure_patterns:
+    kind: sqlite-sql
+    source: logger-db
+    description: Top recurring failure messages in chaos logs.
+    statement: |
+      SELECT
+        message AS failure_message,
+        COUNT(*) AS occurrences,
+        GROUP_CONCAT(DISTINCT chaos_agent) AS involved_agents
+      FROM chaos_logs
+      WHERE severity IN ('CRITICAL', 'ERROR')
+      GROUP BY message
+      ORDER BY occurrences DESC
+      LIMIT 10;
+
+
+  # ✅ New: View agent activity timeline (useful for timeline-based views)
+  agent_activity_timeline:
+    kind: sqlite-sql
+    source: logger-db
+    description: Historical timeline of agent activity for visualization.
+    statement: |
+      SELECT
+        chaos_agent,
+        DATE(timestamp) AS activity_day,
+        COUNT(*) AS log_count,
+        SUM(CASE WHEN severity IN ('CRITICAL', 'ERROR') THEN 1 ELSE 0 END) AS failures
+      FROM chaos_logs
+      GROUP BY chaos_agent, DATE(timestamp)
+      ORDER BY DATE(timestamp) DESC;
+
+
+  # ✅ New: Summary of recent anomalies across services
+  service_anomaly_snapshot:
+    kind: sqlite-sql
+    source: logger-db
+    description: Snapshot of anomalies in health metrics per service in the last 48 hours.
+    statement: |
+      SELECT
+        service_name,
+        region,
+        COUNT(*) AS datapoints,
+        ROUND(AVG(cpu_usage), 2) AS avg_cpu,
+        ROUND(AVG(memory_usage_mb), 2) AS avg_mem,
+        ROUND(AVG(response_time_ms), 2) AS avg_latency,
+        GROUP_CONCAT(DISTINCT status) AS status_summary
+      FROM system_health_metrics
+      WHERE metric_timestamp >= datetime('now', '-2 days')
+        AND status IN ('Degraded', 'Unhealthy', 'Critical')
+      GROUP BY service_name, region
+      ORDER BY avg_latency DESC;
   list_experiments:
     kind: sqlite-sql
     source: logger-db
@@ -31,7 +104,7 @@ tools:
         SUM(CASE WHEN severity IN ('CRITICAL', 'ERROR') THEN 1 ELSE 0 END) AS error_logs
       FROM chaos_logs
       GROUP BY experiment_id
-      ORDER BY last_seen DESC;
+      ORDER BY MAX(timestamp) DESC;
 
   get_experiment_by_id:
     kind: sqlite-sql
@@ -60,7 +133,7 @@ tools:
         timestamp AS detected_at
       FROM chaos_logs
       WHERE severity IN ('CRITICAL', 'EMERGENCY', 'ALERT')
-      ORDER BY detected_at DESC;
+      ORDER BY timestamp DESC;
 
   search_logs_by_agent:
     kind: sqlite-sql
@@ -89,13 +162,149 @@ tools:
       WHERE severity = 'CRITICAL'
         AND timestamp >= datetime('now', '-7 days')
       GROUP BY experiment_id
-      ORDER BY last_failure_time DESC;
+      ORDER BY MAX(timestamp) DESC;
 
+  # 🔥 HEALTH METRIC TOOLS
+
+  list_service_health:
+    kind: sqlite-sql
+    source: logger-db
+    description: Get latest health status per service.
+    statement: |
+      SELECT
+        service_name,
+        region,
+        MAX(metric_timestamp) AS last_reported,
+        ROUND(AVG(cpu_usage), 2) AS avg_cpu,
+        ROUND(AVG(memory_usage_mb), 2) AS avg_memory,
+        ROUND(AVG(response_time_ms), 2) AS avg_response_time,
+        GROUP_CONCAT(DISTINCT status) AS status_summary
+      FROM system_health_metrics
+      GROUP BY service_name, region
+      ORDER BY MAX(metric_timestamp) DESC;
+
+  service_health_by_region:
+    kind: sqlite-sql
+    source: logger-db
+    description: Get the latest metrics for a given region.
+    parameters:
+      - name: region
+        type: string
+        description: GCP region (e.g., "us-central1").
+    statement: |
+      SELECT
+        service_name,
+        MAX(metric_timestamp) AS last_seen,
+        ROUND(AVG(cpu_usage), 2) AS avg_cpu,
+        ROUND(AVG(memory_usage_mb), 2) AS avg_memory,
+        ROUND(AVG(disk_io_mb), 2) AS avg_disk_io,
+        ROUND(AVG(response_time_ms), 2) AS avg_latency,
+        GROUP_CONCAT(DISTINCT status) AS status_summary
+      FROM system_health_metrics
+      WHERE region = ?
+      GROUP BY service_name
+      ORDER BY avg_latency DESC;
+
+  top_latency_services:
+    kind: sqlite-sql
+    source: logger-db
+    description: Services with the highest average latency in last 24 hours.
+    statement: |
+      SELECT
+        service_name,
+        ROUND(AVG(response_time_ms), 2) AS avg_response_time,
+        COUNT(*) AS data_points
+      FROM system_health_metrics
+      WHERE metric_timestamp >= datetime('now', '-1 day')
+      GROUP BY service_name
+      ORDER BY avg_response_time DESC
+      LIMIT 5;
+
+  recent_errors:
+    kind: sqlite-sql
+    source: logger-db
+    description: Total count of ERROR and CRITICAL logs from chaos_logs table.
+    parameters: []
+    statement: |
+      SELECT
+        id,
+        experiment_id,
+        message AS failure_type,
+        severity,
+        region,
+        timestamp
+      FROM chaos_logs
+      WHERE severity IN ('ERROR', 'CRITICAL')
+      ORDER BY timestamp DESC
+      LIMIT 5;
+
+  most_frequent_error_types:
+    kind: sqlite-sql
+    source: logger-db
+    description: Total count of ERROR and CRITICAL logs from chaos_logs table.
+    parameters: []
+    statement: |
+      SELECT
+        message AS failure_type,
+        COUNT(*) AS count,
+        GROUP_CONCAT(DISTINCT region) AS regions
+      FROM chaos_logs
+      WHERE severity IN ('ERROR', 'CRITICAL')
+      GROUP BY message
+      ORDER BY count DESC
+      LIMIT 5;
+
+  errors_logs_grouped_by_severity:
+    kind: sqlite-sql
+    source: logger-db
+    description: errors_grouped_by_severity.
+    parameters: []
+    statement: |
+      SELECT severity, COUNT(*) AS count
+      FROM chaos_logs
+      WHERE severity IN ('ERROR', 'CRITICAL')
+      GROUP BY severity;
+
+
+  critical_error_logs_grouped_by_region:
+    kind: sqlite-sql
+    source: logger-db
+    description: Total count of ERROR and CRITICAL logs from chaos_logs table.
+    parameters: []
+    statement: |
+      SELECT region, severity, COUNT(*) AS count
+      FROM chaos_logs
+      WHERE severity IN ('ERROR', 'CRITICAL')
+      GROUP BY region, severity;
+
+  total_error_logs:
+    kind: sqlite-sql
+    source: logger-db
+    description: Total count of ERROR and CRITICAL logs from chaos_logs table.
+    parameters: []
+    statement: |
+      SELECT COUNT(*) AS total_error_logs
+      FROM chaos_logs
+      WHERE severity IN ('ERROR', 'CRITICAL');
 toolsets:
-  chaos_toolset:
+  detector_toolset:
+    - recent_errors
+    - most_frequent_error_types
+    - errors_logs_grouped_by_severity
+    - critical_error_logs_grouped_by_region
+    - total_error_logs
     - list_experiments
     - get_experiment_by_id
     - list_anomalies
     - search_logs_by_agent
     - recent_failed_experiments
     - get_agent_status_metrics
+    - system_chaos_summary
+    - frequent_failure_patterns
+    - agent_activity_timeline
+
+  health_toolset:
+    - list_service_health
+    - service_health_by_region
+    - top_latency_services
+    - service_anomaly_snapshot
