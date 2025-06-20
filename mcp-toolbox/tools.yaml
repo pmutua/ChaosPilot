@@ -1,7 +1,7 @@
 sources:
   bq-export:
     kind: "bigquery"
-    project: ${GOOGLE_CLOUD_PROJECT}
+    project: "aceti-462716"
 
 tools:
   system_chaos_summary:
