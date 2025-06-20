@@ -1,114 +1,57 @@
 sources:
-  logger-db:
-    kind: "sqlite"
-    database: "./logger-data/database.db"
+  bq-export:
+    kind: "bigquery"
+    project: ${GOOGLE_CLOUD_PROJECT}
 
 tools:
-  get_agent_status_metrics:
-    kind: sqlite-sql
-    source: logger-db
-    description: Returns all chaos agents and their latest metrics.
-    parameters: []
-    statement: |
-      SELECT
-        chaos_agent AS agent_id,
-        COUNT(DISTINCT experiment_id) AS experiment_count,
-        CASE 
-          WHEN COUNT(*) = 0 THEN '0%'
-          ELSE ROUND(100.0 * SUM(CASE WHEN severity != 'CRITICAL' THEN 1 ELSE 0 END) / COUNT(*), 2) || '%'
-        END AS success_rate,
-        MAX(timestamp) AS last_updated
-      FROM chaos_logs
-      GROUP BY chaos_agent
-      ORDER BY MAX(timestamp) DESC;
-
-  # ✅ New: Overall summary of all chaos events by severity and type
   system_chaos_summary:
-    kind: sqlite-sql
-    source: logger-db
+    kind: bigquery-sql
+    source: bq-export
     description: Aggregated view of all chaos logs in the system.
     parameters: []
     statement: |
       SELECT
         severity,
         COUNT(*) AS count,
-        COUNT(DISTINCT chaos_agent) AS affected_agents,
-        COUNT(DISTINCT experiment_id) AS affected_experiments,
-        GROUP_CONCAT(DISTINCT region) AS involved_regions
-      FROM chaos_logs
+        COUNT(DISTINCT jsonPayload.agent_id) AS affected_agents,
+        COUNT(DISTINCT jsonPayload.experiment_id) AS affected_experiments,
+        STRING_AGG(DISTINCT jsonPayload.region) AS involved_regions
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
       GROUP BY severity
       ORDER BY count DESC;
 
-
-  # ✅ New: Detect top recurring failure messages
   frequent_failure_patterns:
-    kind: sqlite-sql
-    source: logger-db
+    kind: bigquery-sql
+    source: bq-export
     description: Top recurring failure messages in chaos logs.
     statement: |
       SELECT
-        message AS failure_message,
+        jsonPayload.message AS failure_message,
         COUNT(*) AS occurrences,
-        GROUP_CONCAT(DISTINCT chaos_agent) AS involved_agents
-      FROM chaos_logs
+        STRING_AGG(DISTINCT jsonPayload.agent_id) AS involved_agents
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
       WHERE severity IN ('CRITICAL', 'ERROR')
-      GROUP BY message
+      GROUP BY jsonPayload.message
       ORDER BY occurrences DESC
       LIMIT 10;
 
-
-  # ✅ New: View agent activity timeline (useful for timeline-based views)
-  agent_activity_timeline:
-    kind: sqlite-sql
-    source: logger-db
-    description: Historical timeline of agent activity for visualization.
-    statement: |
-      SELECT
-        chaos_agent,
-        DATE(timestamp) AS activity_day,
-        COUNT(*) AS log_count,
-        SUM(CASE WHEN severity IN ('CRITICAL', 'ERROR') THEN 1 ELSE 0 END) AS failures
-      FROM chaos_logs
-      GROUP BY chaos_agent, DATE(timestamp)
-      ORDER BY DATE(timestamp) DESC;
-
-
-  # ✅ New: Summary of recent anomalies across services
-  service_anomaly_snapshot:
-    kind: sqlite-sql
-    source: logger-db
-    description: Snapshot of anomalies in health metrics per service in the last 48 hours.
-    statement: |
-      SELECT
-        service_name,
-        region,
-        COUNT(*) AS datapoints,
-        ROUND(AVG(cpu_usage), 2) AS avg_cpu,
-        ROUND(AVG(memory_usage_mb), 2) AS avg_mem,
-        ROUND(AVG(response_time_ms), 2) AS avg_latency,
-        GROUP_CONCAT(DISTINCT status) AS status_summary
-      FROM system_health_metrics
-      WHERE metric_timestamp >= datetime('now', '-2 days')
-        AND status IN ('Degraded', 'Unhealthy', 'Critical')
-      GROUP BY service_name, region
-      ORDER BY avg_latency DESC;
   list_experiments:
-    kind: sqlite-sql
-    source: logger-db
+    kind: bigquery-sql
+    source: bq-export
     description: List all chaos experiments.
     statement: |
       SELECT
-        experiment_id AS id,
-        MAX(timestamp) AS last_seen,
+        jsonPayload.experiment_id AS id,
+        MAX(jsonPayload.timestamp) AS last_seen,
         COUNT(*) AS total_logs,
         SUM(CASE WHEN severity IN ('CRITICAL', 'ERROR') THEN 1 ELSE 0 END) AS error_logs
-      FROM chaos_logs
-      GROUP BY experiment_id
-      ORDER BY MAX(timestamp) DESC;
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
+      GROUP BY jsonPayload.experiment_id
+      ORDER BY last_seen DESC;
 
   get_experiment_by_id:
-    kind: sqlite-sql
-    source: logger-db
+    kind: bigquery-sql
+    source: bq-export
     description: Get all logs for a specific experiment.
     parameters:
       - name: experiment_id
@@ -116,176 +59,149 @@ tools:
         description: The experiment ID (e.g., "exp0001").
     statement: |
       SELECT *
-      FROM chaos_logs
-      WHERE experiment_id = ?
-      ORDER BY timestamp DESC;
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
+      WHERE jsonPayload.experiment_id = ?
+      ORDER BY jsonPayload.timestamp DESC;
 
   list_anomalies:
-    kind: sqlite-sql
-    source: logger-db
+    kind: bigquery-sql
+    source: bq-export
     description: List critical or unusual chaos log entries (anomalies).
     statement: |
       SELECT
-        id,
-        experiment_id,
-        message AS anomaly_type,
+        jsonPayload.experiment_id,
+        jsonPayload.message AS anomaly_type,
         severity,
-        timestamp AS detected_at
-      FROM chaos_logs
+        jsonPayload.timestamp AS detected_at
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
       WHERE severity IN ('CRITICAL', 'EMERGENCY', 'ALERT')
-      ORDER BY timestamp DESC;
-
-  search_logs_by_agent:
-    kind: sqlite-sql
-    source: logger-db
-    description: Search logs generated by a specific agent.
-    parameters:
-      - name: agent_name
-        type: string
-        description: The name of the chaos agent.
-    statement: |
-      SELECT *
-      FROM chaos_logs
-      WHERE chaos_agent = ?
-      ORDER BY timestamp DESC;
+      ORDER BY detected_at DESC;
 
   recent_failed_experiments:
-    kind: sqlite-sql
-    source: logger-db
+    kind: bigquery-sql
+    source: bq-export
     description: List experiments with at least one CRITICAL error in the past 7 days.
     statement: |
       SELECT
-        experiment_id AS id,
-        MAX(timestamp) AS last_failure_time,
+        jsonPayload.experiment_id AS id,
+        MAX(jsonPayload.timestamp) AS last_failure_time,
         COUNT(*) AS failure_count
-      FROM chaos_logs
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
       WHERE severity = 'CRITICAL'
-        AND timestamp >= datetime('now', '-7 days')
-      GROUP BY experiment_id
-      ORDER BY MAX(timestamp) DESC;
-
-  # 🔥 HEALTH METRIC TOOLS
-
-  list_service_health:
-    kind: sqlite-sql
-    source: logger-db
-    description: Get latest health status per service.
-    statement: |
-      SELECT
-        service_name,
-        region,
-        MAX(metric_timestamp) AS last_reported,
-        ROUND(AVG(cpu_usage), 2) AS avg_cpu,
-        ROUND(AVG(memory_usage_mb), 2) AS avg_memory,
-        ROUND(AVG(response_time_ms), 2) AS avg_response_time,
-        GROUP_CONCAT(DISTINCT status) AS status_summary
-      FROM system_health_metrics
-      GROUP BY service_name, region
-      ORDER BY MAX(metric_timestamp) DESC;
-
-  service_health_by_region:
-    kind: sqlite-sql
-    source: logger-db
-    description: Get the latest metrics for a given region.
-    parameters:
-      - name: region
-        type: string
-        description: GCP region (e.g., "us-central1").
-    statement: |
-      SELECT
-        service_name,
-        MAX(metric_timestamp) AS last_seen,
-        ROUND(AVG(cpu_usage), 2) AS avg_cpu,
-        ROUND(AVG(memory_usage_mb), 2) AS avg_memory,
-        ROUND(AVG(disk_io_mb), 2) AS avg_disk_io,
-        ROUND(AVG(response_time_ms), 2) AS avg_latency,
-        GROUP_CONCAT(DISTINCT status) AS status_summary
-      FROM system_health_metrics
-      WHERE region = ?
-      GROUP BY service_name
-      ORDER BY avg_latency DESC;
-
-  top_latency_services:
-    kind: sqlite-sql
-    source: logger-db
-    description: Services with the highest average latency in last 24 hours.
-    statement: |
-      SELECT
-        service_name,
-        ROUND(AVG(response_time_ms), 2) AS avg_response_time,
-        COUNT(*) AS data_points
-      FROM system_health_metrics
-      WHERE metric_timestamp >= datetime('now', '-1 day')
-      GROUP BY service_name
-      ORDER BY avg_response_time DESC
-      LIMIT 5;
+        AND jsonPayload.timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
+      GROUP BY jsonPayload.experiment_id
+      ORDER BY last_failure_time DESC;
 
   recent_errors:
-    kind: sqlite-sql
-    source: logger-db
-    description: Total count of ERROR and CRITICAL logs from chaos_logs table.
+    kind: bigquery-sql
+    source: bq-export
+    description: Last 5 ERROR and CRITICAL logs.
     parameters: []
     statement: |
       SELECT
-        id,
-        experiment_id,
-        message AS failure_type,
+        jsonPayload.experiment_id,
+        jsonPayload.message AS failure_type,
         severity,
-        region,
-        timestamp
-      FROM chaos_logs
+        jsonPayload.region,
+        jsonPayload.timestamp
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
       WHERE severity IN ('ERROR', 'CRITICAL')
-      ORDER BY timestamp DESC
+      ORDER BY jsonPayload.timestamp DESC
       LIMIT 5;
 
   most_frequent_error_types:
-    kind: sqlite-sql
-    source: logger-db
-    description: Total count of ERROR and CRITICAL logs from chaos_logs table.
+    kind: bigquery-sql
+    source: bq-export
+    description: Most frequent error messages by count.
     parameters: []
     statement: |
       SELECT
-        message AS failure_type,
+        jsonPayload.message AS failure_type,
         COUNT(*) AS count,
-        GROUP_CONCAT(DISTINCT region) AS regions
-      FROM chaos_logs
+        STRING_AGG(DISTINCT jsonPayload.region) AS regions
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
       WHERE severity IN ('ERROR', 'CRITICAL')
-      GROUP BY message
+      GROUP BY jsonPayload.message
       ORDER BY count DESC
       LIMIT 5;
 
   errors_logs_grouped_by_severity:
-    kind: sqlite-sql
-    source: logger-db
-    description: errors_grouped_by_severity.
+    kind: bigquery-sql
+    source: bq-export
+    description: Errors grouped by severity.
     parameters: []
     statement: |
       SELECT severity, COUNT(*) AS count
-      FROM chaos_logs
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
       WHERE severity IN ('ERROR', 'CRITICAL')
       GROUP BY severity;
 
-
   critical_error_logs_grouped_by_region:
-    kind: sqlite-sql
-    source: logger-db
-    description: Total count of ERROR and CRITICAL logs from chaos_logs table.
+    kind: bigquery-sql
+    source: bq-export
+    description: Count of errors by region and severity.
     parameters: []
     statement: |
-      SELECT region, severity, COUNT(*) AS count
-      FROM chaos_logs
+      SELECT jsonPayload.region, severity, COUNT(*) AS count
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
       WHERE severity IN ('ERROR', 'CRITICAL')
-      GROUP BY region, severity;
+      GROUP BY jsonPayload.region, severity;
 
   total_error_logs:
-    kind: sqlite-sql
-    source: logger-db
-    description: Total count of ERROR and CRITICAL logs from chaos_logs table.
+    kind: bigquery-sql
+    source: bq-export
+    description: Total ERROR and CRITICAL logs.
     parameters: []
     statement: |
       SELECT COUNT(*) AS total_error_logs
-      FROM chaos_logs
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
       WHERE severity IN ('ERROR', 'CRITICAL');
+
+  agent_failure_rate:
+    kind: bigquery-sql
+    source: bq-export
+    description: Failure rate per agent.
+    statement: |
+      SELECT
+        jsonPayload.agent_id,
+        COUNT(*) AS total_logs,
+        SUM(CASE WHEN severity IN ('CRITICAL', 'ERROR') THEN 1 ELSE 0 END) AS error_count,
+        ROUND(SAFE_DIVIDE(SUM(CASE WHEN severity IN ('CRITICAL', 'ERROR') THEN 1 ELSE 0 END), COUNT(*)), 2) AS failure_rate
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
+      GROUP BY jsonPayload.agent_id
+      ORDER BY failure_rate DESC;
+
+  user_impact_summary:
+    kind: bigquery-sql
+    source: bq-export
+    description: Impact on users from error logs.
+    statement: |
+      SELECT
+        jsonPayload.details.user_id,
+        COUNT(*) AS total_events,
+        COUNTIF(severity = 'CRITICAL') AS critical_events,
+        COUNTIF(severity = 'ERROR') AS error_events
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
+      WHERE severity IN ('CRITICAL', 'ERROR')
+      GROUP BY jsonPayload.details.user_id
+      ORDER BY critical_events DESC;
+
+  http_error_summary:
+    kind: bigquery-sql
+    source: bq-export
+    description: Common HTTP failure patterns.
+    statement: |
+      SELECT
+        jsonPayload.httprequest.requestmethod AS method,
+        jsonPayload.httprequest.requesturl AS url,
+        jsonPayload.status_code,
+        COUNT(*) AS failures
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
+      WHERE severity = 'ERROR'
+      GROUP BY method, url, jsonPayload.status_code
+      ORDER BY failures DESC
+      LIMIT 10;
+
 toolsets:
   detector_toolset:
     - recent_errors
@@ -296,15 +212,9 @@ toolsets:
     - list_experiments
     - get_experiment_by_id
     - list_anomalies
-    - search_logs_by_agent
     - recent_failed_experiments
-    - get_agent_status_metrics
     - system_chaos_summary
     - frequent_failure_patterns
-    - agent_activity_timeline
-
-  health_toolset:
-    - list_service_health
-    - service_health_by_region
-    - top_latency_services
-    - service_anomaly_snapshot
+    - agent_failure_rate
+    - user_impact_summary
+    - http_error_summary
