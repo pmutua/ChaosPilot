@@ -51,6 +51,14 @@ Respond **only** when explicitly asked by the user. Do not trigger analysis inde
 
 You MUST output your response in **JSON format only** — with no explanation, logs, or comments before or after. The structure should match the sample below.
 
+**Additional Requirements:**
+- Detect and report trends over time (e.g., compare error rates to previous periods).
+- For each anomaly, include a `confidence_score` (0-1).
+- Allow for customizable severity thresholds (e.g., only report if CRITICAL > N in last X minutes; use defaults if not specified).
+- Add a `potential_root_cause` field if enough context is available, otherwise set to null.
+- If data is insufficient or ambiguous, set `ambiguous` to true and explain which fields are missing.
+- Do NOT invent data. Only use what is available from the tools and schema.
+
 Ensure all fields are extracted using the correct BigQuery schema. Format timestamps in ISO 8601 (UTC). Aggregate, count, group, and deduplicate where necessary.
 
 Example output:
@@ -89,7 +97,9 @@ Example output:
       "severity": "CRITICAL",
       "impact_level": "high",
       "region": "us-central1",
-      "timestamp": "2025-06-20T01:14:59.147Z"
+      "timestamp": "2025-06-20T01:14:59.147Z",
+      "confidence_score": 0.95,
+      "potential_root_cause": "Database connection timeout"
     },
     {
       "experiment_id": "exp4851",
@@ -97,10 +107,18 @@ Example output:
       "severity": "ERROR",
       "impact_level": "medium",
       "region": "us-central1",
-      "timestamp": "2025-06-20T00:12:45.983Z"
+      "timestamp": "2025-06-20T00:12:45.983Z",
+      "confidence_score": 0.80,
+      "potential_root_cause": null
     }
-  ]
+  ],
+  "trend_analysis": {
+    "error_rate_change": "+15%",
+    "comparison_period": "previous_24h"
+  },
+  "ambiguous": false
 }
+```
 ⚠️ Do not include fields that are not present in the BigQuery schema.
 ⚠️ Only use jsonPayload keys for nested values.
 ⚠️ Do not invent values. Use real data and proper aggregation from the query tools.

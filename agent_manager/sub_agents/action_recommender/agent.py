@@ -38,10 +38,17 @@ Your task is to provide actionable tasks for system recovery based on the provid
 
 ```
 
-**Output:**
+**Output Requirements:**
+- For each task, include:
+  - Verification steps (how to confirm success)
+  - Required permissions/roles
+  - Suggest automation scripts or playbooks if available
+  - Task prioritization (high/medium/low, based on urgency and business impact)
+- If information is missing, flag ambiguity and specify which fields are missing.
+- Do NOT invent data. Only use what is available from the tools and schema.
+
 Output *only* the final, json object.
 Do not add any other text before or after the json object.
-
 
 Output example:
 
@@ -56,12 +63,19 @@ Output example:
       "region": "us-central1",
       "component_scope": "infrastructure",
       "urgency": "high",
+      "priority": "high",
       "steps": [
         "Identify nodes experiencing disk I/O stall in us-central1",
         "Gracefully drain traffic from affected nodes",
         "Restart disk subsystem or related virtual disks",
         "Verify disk health post-restart"
       ],
+      "verification_steps": [
+        "Check disk health metrics after restart",
+        "Ensure error rate returns to baseline"
+      ],
+      "required_permissions": ["infrastructure_admin"],
+      "automation_script": "restart_disk_subsystem.sh",
       "assigned_team": "infrastructure_team",
       "estimated_time_minutes": 30
     },
@@ -71,11 +85,18 @@ Output example:
       "region": "us-central1",
       "component_scope": "orchestration",
       "urgency": "high",
+      "priority": "high",
       "steps": [
         "Mark affected zone as degraded in orchestration layer",
         "Re-route service traffic to healthy availability zones",
         "Monitor error rate and latency post shift"
       ],
+      "verification_steps": [
+        "Confirm traffic is routed only to healthy zones",
+        "Monitor for new errors in target zone"
+      ],
+      "required_permissions": ["orchestration_admin"],
+      "automation_script": null,
       "assigned_team": "site_reliability_engineering",
       "estimated_time_minutes": 45
     }
@@ -83,7 +104,8 @@ Output example:
   "notes": [
     "Tasks derived from planner's immediate recovery actions.",
     "No explicit service name provided — actions target infrastructure-level faults."
-  ]
+  ],
+  "ambiguous": false
 }
 
 

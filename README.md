@@ -37,7 +37,7 @@ ChaosPilot currently runs on a **simulated environment using SQLite**, enabling 
 
 These are part of the future roadmap to support real-world scale and data ingestion across modern production environments.
 
-> **“Let ChaosPilot be your observability sidekick — smarter decisions, faster recoveries, zero firefighting fatigue.”**
+> **"Let ChaosPilot be your observability sidekick — smarter decisions, faster recoveries, zero firefighting fatigue."**
 
 
 ## Video Demo
@@ -144,7 +144,7 @@ These examples demonstrate how the ChaosPilot agents work in sequence to detect,
 - A Cloud SQL instance crashes unexpectedly at **2:00 AM**.
 - `detector_agent` identifies the outage within **3 minutes** via chaos logs and telemetry.
 - `planner_agent` processes the event and determines:
-  > “This is a production database with a 5-minute downtime threshold.” → High priority recovery required.
+  > "This is a production database with a 5-minute downtime threshold." → High priority recovery required.
 - `action_recommender` scopes the solution:
   > Restore from the latest backup.
 - `fixer_agent` approves the task:
@@ -236,3 +236,92 @@ Traffic shift was executed safely, minimizing user disruption without waking the
 ---
 
 See [GCP Setup Guide](docs/GCP_SETUP.md) for configuration instructions.
+
+---
+
+## 🏃 Running ChaosPilot Locally (All Services)
+
+
+uv sync (install dependencies)
+
+uv run adk api_server agent_manager --allow_origins="*"
+
+uv run adk web --port 8501  playground
+
+uv run mcp-toolbox/tool.exe
+
+linting
+	uv run codespell
+	uv run ruff check . --diff
+	uv run ruff format . --check --diff
+	uv run mypy .
+
+
+front end 
+
+npm --prefix web run start
+
+# Run a code quality check
+uv run ruff check .
+
+You can run the entire stack (MCP Toolbox, backend, and frontend) locally for development or demo purposes. Below are both manual and script-based instructions for Windows and Linux/Mac.
+
+### **Manual Run (All Platforms)**
+
+1. **Start MCP Toolbox**
+   - Windows: `app\mcp-toolbox\toolbox.exe`
+   - Linux/Mac/WSL: `./app/mcp-toolbox/toolbox.exe`
+
+2. **Start Backend (ADK Agent/FastAPI)**
+   - `uv run adk api_server app --allow_origins="*"`
+
+3. **Start Frontend (Angular)**
+   - `npm --prefix frontend run start`
+
+> **Tip:** Always start MCP Toolbox first, then backend, then frontend.
+
+---
+
+### **One-Click Script (Recommended)**
+
+#### **Windows**
+- Use the batch script:
+  ```bat
+  scripts\run-all.bat
+  ```
+  - Double-click or run from terminal. This will open three windows for MCP Toolbox, backend, and frontend.
+
+#### **Linux/Mac/WSL**
+- Use the bash script:
+  ```sh
+  chmod +x scripts/run-all.sh
+  ./scripts/run-all.sh
+  ```
+  - This will start all services in the background and wait for them.
+
+---
+
+### **Troubleshooting**
+- If MCP Toolbox does not start, check:
+  - The path to `toolbox.exe` is correct.
+  - You have permission to run executables.
+  - No other process is using port 5000.
+  - Run `toolbox.exe` directly to see any error messages.
+- If you have issues with Python dependencies:
+  - Run `uv lock` (first time only) then `uv sync --frozen`.
+- If you have issues with Node.js dependencies:
+  - Run `npm --prefix frontend install`.
+
+---
+
+### **Summary Table**
+
+| Service         | Command (Windows)                        | Command (Linux/Mac/WSL)                |
+|-----------------|------------------------------------------|----------------------------------------|
+| MCP Toolbox     | `app\mcp-toolbox\toolbox.exe`           | `./app/mcp-toolbox/toolbox.exe`        |
+| Backend         | `uv run adk api_server app --allow_origins="*"` | `uv run adk api_server app --allow_origins="*"` |
+| Frontend        | `npm --prefix frontend run start`         | `npm --prefix frontend run start`      |
+
+---
+
+For more details, see the scripts in the `scripts/` directory or ask for troubleshooting help!

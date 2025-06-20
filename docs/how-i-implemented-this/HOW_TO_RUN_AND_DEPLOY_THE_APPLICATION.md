@@ -632,21 +632,96 @@ gcloud iam service-accounts describe cloud-run-svc@[PROJECT_ID].iam.gserviceacco
 
 ## Deploy to Cloud Run
 
+### 1. Deploying MCP Toolbox for Databases and Agent to Cloud Run
+
+In root directory navigate to "mcp-toobox" folder (use. cd)
+
+Run the following commands (an explanation is provided for each command):
+
+Set the `PROJECT_ID` variable to point to your Google Cloud Project Id.
+
+```bash
+
+## Linux / macOS
+export PROJECT_ID="YOUR_GOOGLE_CLOUD_PROJECT_ID" 
+
+## Windows
+
+set PROJECT_ID="YOUR_GOOGLE_CLOUD_PROJECT_ID" 
+
+```
+
+We will upload the `tools.yaml` file as a secret and since we have to install the Toolbox in Cloud Run, we are going to use the latest Container image for the toolbox and set that in the IMAGE variable.
+
 Run the following command
 
 ```bash
 
-# Linux or MacOS
-adk deploy cloud_run \
---project=$GOOGLE_CLOUD_PROJECT \
---region=$GOOGLE_CLOUD_LOCATION \
-$AGENT_PATH
+gcloud secrets create tools --data-file=tools.yaml
 
-# Windows
+# Incase you need to update secrets 
+# Here’s how to update the secret by adding a new version with the updated file:
+gcloud secrets versions add tools --data-file=tools.yaml
 
-adk deploy cloud_run ^
---project=$GOOGLE_CLOUD_PROJECT ^
---region=$GOOGLE_CLOUD_LOCATION ^
-$AGENT_PATH
+
+## Linux / macOS
+export IMAGE=us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest
+
+## Windows
+set IMAGE=africa-south1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest
 
 ```
+
+The last step in the familiar deployment command to Cloud Run:
+
+>**NOTE:** Don't forget the service account we created used it.
+
+```bash
+
+## Linux / macOS Terminal
+
+gcloud run deploy toolbox \
+--image $IMAGE \
+--service-account cloud-run-svc \
+--region africa-south1 \
+--set-secrets "/app/tools.yaml=tools:latest" \
+--args="--tools_file=/app/tools.yaml","--address=0.0.0.0","--port=8080" \
+--allow-unauthenticated
+
+## Windows CMD
+
+gcloud run deploy toolbox ^
+  --image gcr.io/aceti-462716/toolbox:latest ^
+  --service-account cloud-run-svc ^
+  --region africa-south1 ^
+  --set-secrets "/app/tools.yaml=tools:latest" ^
+  --args="--tools_file=/app/tools.yaml","--address=0.0.0.0","--port=8080" 
+  --allow-unauthenticated
+
+
+```
+
+
+
+🔍 3. Verify installation
+After install, check version:
+
+bash
+Copy
+Edit
+uv --version
+📦 4. Use it like pip
+Examples:
+
+bash
+Copy
+Edit
+uv pip install hatchling
+uv venv  # create a virtual environment
+uv pip freeze
+📝 Notes
+uv is extremely fast because it uses Rust under the hood.
+
+You don't need to uninstall pip. You can use both side-by-side.
+
+It's compatible with pyproject.toml and lock files like uv.lock.
