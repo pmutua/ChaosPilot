@@ -202,6 +202,127 @@ tools:
       ORDER BY failures DESC
       LIMIT 10;
 
+  incidents_by_agent_and_experiment:
+    kind: bigquery-sql
+    source: bq-export
+    description: Count of logs by agent and experiment, grouped by severity and region.
+    statement: |
+      SELECT
+        jsonPayload.agent_id,
+        jsonPayload.experiment_id,
+        severity,
+        jsonPayload.region,
+        COUNT(*) AS log_count
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
+      GROUP BY agent_id, experiment_id, severity, region
+      ORDER BY log_count DESC
+
+  error_trends_by_agent:
+    kind: bigquery-sql
+    source: bq-export
+    description: Error and critical log trends by agent over time.
+    statement: |
+      SELECT
+        jsonPayload.agent_id,
+        severity,
+        FORMAT_TIMESTAMP('%Y-%m-%d %H:00:00', TIMESTAMP(jsonPayload.timestamp)) AS hour,
+        COUNT(*) AS count
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
+      WHERE severity IN ('ERROR', 'CRITICAL')
+      GROUP BY agent_id, severity, hour
+      ORDER BY hour DESC, count DESC
+
+  top_regions_by_error:
+    kind: bigquery-sql
+    source: bq-export
+    description: Top regions by error and critical log count.
+    statement: |
+      SELECT
+        jsonPayload.region,
+        severity,
+        COUNT(*) AS error_count
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
+      WHERE severity IN ('ERROR', 'CRITICAL')
+      GROUP BY region, severity
+      ORDER BY error_count DESC
+
+  user_impact_by_experiment:
+    kind: bigquery-sql
+    source: bq-export
+    description: User impact by experiment.
+    statement: |
+      SELECT
+        jsonPayload.experiment_id,
+        COUNT(DISTINCT jsonPayload.details.user_id) AS affected_users,
+        COUNT(*) AS total_events
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
+      WHERE jsonPayload.details.user_id IS NOT NULL
+      GROUP BY experiment_id
+      ORDER BY affected_users DESC
+
+  most_frequent_action_messages:
+    kind: bigquery-sql
+    source: bq-export
+    description: Most frequent log messages (potential actions) by agent and experiment.
+    statement: |
+      SELECT
+        jsonPayload.agent_id AS agent_id,
+        jsonPayload.experiment_id AS experiment_id,
+        jsonPayload.message AS action_message,
+        COUNT(*) AS count
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
+      WHERE jsonPayload.message IS NOT NULL
+      GROUP BY agent_id, experiment_id, action_message
+      ORDER BY count DESC
+      LIMIT 20;
+
+  error_actions_by_agent:
+    kind: bigquery-sql
+    source: bq-export
+    description: Count of ERROR and CRITICAL log messages by agent.
+    statement: |
+      SELECT
+        jsonPayload.agent_id AS agent_id,
+        COUNT(*) AS error_count
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
+      WHERE severity IN ('ERROR', 'CRITICAL')
+      GROUP BY agent_id
+      ORDER BY error_count DESC;
+
+  recent_actions_by_experiment:
+    kind: bigquery-sql
+    source: bq-export
+    description: Recent log messages for a specific experiment.
+    parameters:
+      - name: experiment_id
+        type: string
+        description: The experiment ID (e.g., "exp0001").
+    statement: |
+      SELECT
+        jsonPayload.agent_id,
+        jsonPayload.message,
+        severity,
+        jsonPayload.timestamp
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
+      WHERE jsonPayload.experiment_id = @experiment_id
+      ORDER BY jsonPayload.timestamp DESC
+      LIMIT 20;
+
+  user_impact_by_action:
+    kind: bigquery-sql
+    source: bq-export
+    description: User impact summary by log message.
+    statement: |
+      SELECT
+        jsonPayload.message AS action_message,
+        COUNT(DISTINCT jsonPayload.details.user_id) AS affected_users,
+        COUNT(*) AS total_events
+      FROM `aceti-462716.bqexport.chaospilot_fake_logs_20250620`
+      WHERE jsonPayload.details.user_id IS NOT NULL
+      GROUP BY action_message
+      ORDER BY affected_users DESC
+      LIMIT 10;
+
 toolsets:
   detector_toolset:
     - recent_errors
@@ -218,3 +339,13 @@ toolsets:
     - agent_failure_rate
     - user_impact_summary
     - http_error_summary
+  planner_toolset:
+    - incidents_by_agent_and_experiment
+    - error_trends_by_agent
+    - top_regions_by_error
+    - user_impact_by_experiment
+  action_recommender_toolset:
+    - most_frequent_action_messages
+    - error_actions_by_agent
+    - recent_actions_by_experiment
+    - user_impact_by_action
