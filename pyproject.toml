@@ -14,7 +14,10 @@ dependencies = [
     "google-cloud-aiplatform",
     "google-generativeai",
     "litellm==1.72.7",
-    "toolbox-core==0.2.1"
+    "toolbox-core==0.2.1",
+    "sqlalchemy",
+    "alembic",
+    "uvicorn",
 ]
 
 [project.optional-dependencies]
@@ -71,3 +74,4 @@ skip = "./locust_env/*,uv.lock,.venv,./frontend,**/*.ipynb"
 [tool.pytest.ini_options]
 pythonpath = "."
 asyncio_default_fixture_loop_scope = "function"
+
