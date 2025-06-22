@@ -55,15 +55,7 @@ Your task is to:
 - If ambiguity is detected or information is missing, specify which context is missing and suggest a query to resolve it
 - Do NOT invent data. Only use what is available from the tools and schema.
 
-Based on the provided action recommendations:
-
-**Action Recommendations**
-
-```json
-
-{action_recommendations}
-
-```
+The user will provide the action recommendations in their message. Look for JSON content or structured action recommendations information in the user's message.
 
 Output *only* in JSON format. 
 Do not add any other text before or after the json.
