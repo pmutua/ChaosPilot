@@ -32,11 +32,6 @@ cd agent_manager
 adk api_server --allow_origins="*"
 ```
 
-### 2. Test Integration
-```bash
-python test_adk_integration.py
-```
-
 ### 3. Start Frontend
 ```bash
 cd web

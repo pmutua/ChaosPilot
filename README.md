@@ -258,3 +258,27 @@ For support and questions:
 - [📖 Setup Guide](docs/setup-and-deployment/HOW_TO_RUN_AND_DEPLOY_THE_APPLICATION.md)
 - [🔧 ADK Integration](docs/setup-and-deployment/ADK_INTEGRATION_README.md)
 - [🧪 Test Integration](test_adk_integration.py)
+
+## Python Dependency Installation (Recommended: uv)
+
+1. Install [uv](https://github.com/astral-sh/uv) (if not already):
+   ```sh
+   pip install uv
+   ```
+
+2. (Optional but recommended) Create a virtual environment:
+   ```sh
+   uv venv
+   # Activate the virtual environment:
+   # On Linux/macOS:
+   source .venv/bin/activate
+   # On Windows:
+   .venv\\Scripts\\activate
+   ```
+
+3. Install project dependencies from `pyproject.toml`:
+   ```sh
+   uv pip install .
+   ```
+
+This will install all Python dependencies as specified in your `pyproject.toml`.
