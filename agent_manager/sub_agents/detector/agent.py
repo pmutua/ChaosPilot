@@ -3,13 +3,15 @@
 import os
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
-from google.adk.tools import ToolboxTool
+
 import json
 import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 
 from toolbox_core import ToolboxSyncClient
+from dotenv import load_dotenv
+
 
 load_dotenv()
 
@@ -346,12 +348,10 @@ detector_agent = Agent(
     name="enhanced_detector",
     model=LiteLlm(model="azure/gpt-4o"),
     description="Advanced log analysis agent with pattern recognition, anomaly detection, and intelligent classification",
-    tools=[
-        ToolboxTool("http://localhost:5000")  # MCP Toolbox for database queries
-    ]
+    tools=tools
 )
 
-@detector_agent.tool()
+# @detector_agent.tool()
 def analyze_logs_comprehensive(log_data: str) -> str:
     """
     Comprehensive log analysis with advanced pattern recognition and anomaly detection.
@@ -401,7 +401,7 @@ def analyze_logs_comprehensive(log_data: str) -> str:
             "timestamp": datetime.now().isoformat()
         })
 
-@detector_agent.tool()
+# @detector_agent.tool()
 def detect_real_time_anomalies(log_stream: str) -> str:
     """
     Real-time anomaly detection for streaming log data.

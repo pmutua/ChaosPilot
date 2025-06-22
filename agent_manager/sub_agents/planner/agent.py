@@ -4,7 +4,6 @@ import os
 from datetime import datetime, timedelta
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
-from google.adk.tools import ToolboxTool
 import json
 from typing import Dict, List, Any, Optional
 from enum import Enum
@@ -416,15 +415,61 @@ class IntelligentIncidentPlanner:
         
         return actions
 
-# Enhanced planner agent
+# --- Refactored Planner Agent for Schema Compliance ---
 planner_agent = Agent(
-    name="intelligent_planner",
+    name="planner",
     model=LiteLlm(model="azure/gpt-4o"),
-    description="Intelligent incident response planner with automated reasoning and proactive mitigation strategies",
+    description="Incident response planner using only schema-compliant fields from BigQuery logs.",
     tools=tools
 )
 
-@planner_agent.tool()
+def summarize_incidents_by_agent_and_experiment(logs: list) -> dict:
+    """
+    Summarize incidents by agent and experiment using only available schema fields.
+    """
+    summary = {}
+    for log in logs:
+        agent_id = log.get('agent_id')
+        experiment_id = log.get('experiment_id')
+        severity = log.get('severity')
+        region = log.get('region')
+        if not agent_id or not experiment_id:
+            continue
+        key = (agent_id, experiment_id)
+        if key not in summary:
+            summary[key] = {
+                'total_logs': 0,
+                'error_count': 0,
+                'critical_count': 0,
+                'regions': set(),
+                'severities': set()
+            }
+        summary[key]['total_logs'] += 1
+        if severity == 'ERROR':
+            summary[key]['error_count'] += 1
+        if severity == 'CRITICAL':
+            summary[key]['critical_count'] += 1
+        if region:
+            summary[key]['regions'].add(region)
+        if severity:
+            summary[key]['severities'].add(severity)
+    # Convert sets to lists for JSON serialization
+    for key in summary:
+        summary[key]['regions'] = list(summary[key]['regions'])
+        summary[key]['severities'] = list(summary[key]['severities'])
+    return summary
+
+def planner_summary(logs: list) -> dict:
+    """
+    Generate a planner summary using only schema-compliant fields.
+    """
+    summary = summarize_incidents_by_agent_and_experiment(logs)
+    return {
+        'planner_summary_generated_at': datetime.utcnow().isoformat() + 'Z',
+        'incidents_by_agent_and_experiment': summary
+    }
+
+# @planner_agent.tool()
 def create_intelligent_response_plan(detector_data: str) -> str:
     """
     Create intelligent incident response plan with automated reasoning.
@@ -456,7 +501,7 @@ def create_intelligent_response_plan(detector_data: str) -> str:
             "timestamp": datetime.now().isoformat()
         })
 
-@planner_agent.tool()
+# @planner_agent.tool()
 def suggest_proactive_measures(historical_data: str) -> str:
     """
     Suggest proactive measures based on historical incident data.

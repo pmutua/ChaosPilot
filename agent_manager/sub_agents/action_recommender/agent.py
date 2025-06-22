@@ -3,7 +3,6 @@
 import os
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
-from google.adk.tools import ToolboxTool
 import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
@@ -527,99 +526,50 @@ class IntelligentActionRecommender:
 
 # Enhanced action recommender agent
 action_recommender_agent = Agent(
-    name="intelligent_action_recommender",
+    name="action_recommender",
     model=LiteLlm(model="azure/gpt-4o"),
-    description="Intelligent action recommender with automated remediation and smart prioritization",
+    description="Action recommender using only schema-compliant fields from BigQuery logs.",
     tools=tools
 )
 
-@action_recommender_agent.tool()
-def recommend_intelligent_actions(planner_data: str) -> str:
+def recommend_actions_from_logs(logs: list) -> dict:
     """
-    Recommend intelligent actions with automation capabilities.
-    
-    Args:
-        planner_data: JSON string containing planner response data
-    
-    Returns:
-        Intelligent action recommendations with automation context
+    Recommend actions based on most frequent error/critical messages and agent activity using only available schema fields.
     """
-    try:
-        # Parse planner data
-        planner_analysis = json.loads(planner_data)
-        
-        # Initialize intelligent recommender
-        recommender = IntelligentActionRecommender()
-        
-        # Analyze and recommend actions
-        action_analysis = recommender.analyze_incident_for_actions(planner_analysis)
-        
-        return json.dumps(action_analysis, indent=2)
-        
-    except Exception as e:
-        return json.dumps({
-            "error": f"Action recommendation failed: {str(e)}",
-            "timestamp": datetime.now().isoformat()
-        })
-
-@action_recommender_agent.tool()
-def execute_automated_remediation(actions: str) -> str:
-    """
-    Execute automated remediation actions.
-    
-    Args:
-        actions: JSON string containing actions to execute
-    
-    Returns:
-        Execution results and status
-    """
-    try:
-        action_list = json.loads(actions)
-        
-        execution_results = {
-            "execution_id": f"EXEC-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
-            "started_at": datetime.now().isoformat(),
-            "actions_executed": [],
-            "success_count": 0,
-            "failure_count": 0,
-            "overall_status": "in_progress"
+    action_counts = {}
+    for log in logs:
+        agent_id = log.get('agent_id')
+        experiment_id = log.get('experiment_id')
+        message = log.get('message')
+        severity = log.get('severity')
+        if not agent_id or not experiment_id or not message:
+            continue
+        key = (agent_id, experiment_id, message)
+        if key not in action_counts:
+            action_counts[key] = {
+                'count': 0,
+                'severities': set()
+            }
+        action_counts[key]['count'] += 1
+        if severity:
+            action_counts[key]['severities'].add(severity)
+    # Convert sets to lists for JSON serialization
+    for key in action_counts:
+        action_counts[key]['severities'] = list(action_counts[key]['severities'])
+    # Sort by count and take top 10
+    top_actions = sorted(action_counts.items(), key=lambda x: x[1]['count'], reverse=True)[:10]
+    recommendations = [
+        {
+            'agent_id': k[0],
+            'experiment_id': k[1],
+            'action_message': k[2],
+            'count': v['count'],
+            'severities': v['severities']
         }
-        
-        # Simulate action execution
-        for action in action_list:
-            action_name = action.get('action', '')
-            automation_level = action.get('automation_level')
-            
-            if automation_level == ActionType.AUTOMATED:
-                # Simulate automated execution
-                result = {
-                    "action": action_name,
-                    "status": "executed",
-                    "execution_time": "2_minutes",
-                    "success": True,
-                    "output": f"Successfully executed {action_name}"
-                }
-                execution_results["success_count"] += 1
-            else:
-                # Mark for manual execution
-                result = {
-                    "action": action_name,
-                    "status": "pending_manual",
-                    "execution_time": "pending",
-                    "success": None,
-                    "output": f"Requires manual execution: {action_name}"
-                }
-            
-            execution_results["actions_executed"].append(result)
-        
-        execution_results["failure_count"] = len([a for a in execution_results["actions_executed"] if not a.get("success", True)])
-        execution_results["overall_status"] = "completed" if execution_results["failure_count"] == 0 else "partial_success"
-        
-        return json.dumps(execution_results, indent=2)
-        
-    except Exception as e:
-        return json.dumps({
-            "error": f"Automated remediation failed: {str(e)}",
-            "timestamp": datetime.now().isoformat()
-        })
+        for k, v in top_actions
+    ]
+    return {
+        'action_recommender_summary_generated_at': datetime.utcnow().isoformat() + 'Z',
+        'top_recommended_actions': recommendations
+    }
 
