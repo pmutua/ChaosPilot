@@ -84,6 +84,49 @@ Then run:
 hatch run start
 ```
 
+### ✅ Using uv without a virtual environment
+
+If you want to install dependencies **globally** (not recommended for production, but useful for quick experiments or local scripts), just run:
+
+```bash
+uv pip install -r pyproject.toml --system
+```
+
+This will install all dependencies into your global Python environment. Be aware this can affect other Python projects on your system.
+
+### ✅ Using a Virtual Environment vs. hatch shell
+
+If you already have a virtual environment active (e.g., you see something like `(AI-Chaos-Engineering-Team)` in your terminal prompt), you do **not** need to use `hatch shell`. Just install dependencies and run your project as usual:
+
+```bash
+uv pip install -r pyproject.toml
+python agent_manager/agent.py
+```
+
+#### When to use `hatch shell`
+- Use `hatch shell` if you want Hatch to manage your environment for you, or if you want to use Hatch's features (like environment scripts, reproducibility, etc.).
+- If you run `hatch shell` while another venv is active, Hatch will warn you and may use its own environment instead.
+
+#### Best Practice
+- **Pick one environment manager per terminal session:**
+  - If you're using your own venv (e.g., `.venv`), just activate it and use it.
+  - If you want to use Hatch, deactivate your current venv (`deactivate`), then run `hatch shell`.
+
+#### Example: Using your current venv
+```bash
+# If you see (AI-Chaos-Engineering-Team) in your prompt, you're already in your venv!
+uv pip install -r pyproject.toml
+python agent_manager/agent.py
+```
+
+#### Example: Switching to Hatch
+```bash
+deactivate  # Leave your current venv
+hatch shell # Enter Hatch-managed environment
+uv pip install -r pyproject.toml
+python agent_manager/agent.py
+```
+
 ### Summary of Commands
 | Purpose                        | Command                                             |
 |--------------------------------|-----------------------------------------------------|
@@ -138,4 +181,19 @@ chmod +x start_chaospilot.sh
 - **CORS Error**: Make sure you're using the correct ADK command with `--allow_origins="*"`
 - **Connection Refused**: Check that the ADK server is running on port 8000
 - **Agent Not Found**: Verify agent names match exactly (detector, planner, etc.)
-- **GCP Services Not Enabled**: Run the service enablement commands above first 
+- **GCP Services Not Enabled**: Run the service enablement commands above first
+
+### ✅ Running the Agent with ADK (Recommended)
+
+This project uses the ADK CLI for running the agent, not direct `uvicorn` or `python` commands.
+
+To run your agent with the ADK Runtime, use:
+
+```bash
+adk run --core
+```
+
+- The `--core` flag ensures the agent runs with the core ADK runtime engine.
+- This will automatically discover your agent in `agent_manager/agent.py` and start the event loop as described in the documentation.
+
+> **Note:** You can still use `uv`, `venv`, or `hatch` for dependency management and environment setup, but always use the ADK CLI to run the agent. 
