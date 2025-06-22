@@ -146,7 +146,7 @@ cython_debug/
 
 
 
-#################################### NODE    ###################################
+#################################### NODE .git ignore  ###################################
 # Logs
 logs
 *.log
@@ -189,6 +189,7 @@ build/Release
 
 # Dependency directories
 node_modules/
+web/node_modules/
 jspm_packages/
 
 # Snowpack dependency directory (https://snowpack.dev/)
