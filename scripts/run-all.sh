@@ -1,6 +1,6 @@
 #!/bin/bash
 # === Start MCP Toolbox ===
-./app/mcp-toolbox/toolbox.exe &
+./mcp-toolbox/toolbox.exe &
 MCP_PID=$!
 
 echo "Started MCP Toolbox (PID $MCP_PID)"
@@ -8,13 +8,17 @@ echo "Started MCP Toolbox (PID $MCP_PID)"
 # === Wait a few seconds to ensure MCP Toolbox is up ===
 sleep 3
 
-# === Start Backend (ADK Agent/FastAPI) ===
-uv run adk api_server app --allow_origins="*" &
+# === Start Backend (ADK Agent) ===
+cd agent_manager
+adk api_server --allow_origins="*" &
+cd ..
 BACKEND_PID=$!
 echo "Started Backend (PID $BACKEND_PID)"
 
 # === Start Frontend (Angular) ===
-npm --prefix frontend run start &
+cd web
+npm start &
+cd ..
 FRONTEND_PID=$!
 echo "Started Frontend (PID $FRONTEND_PID)"
 
