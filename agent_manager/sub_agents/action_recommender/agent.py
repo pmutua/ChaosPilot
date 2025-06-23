@@ -3,11 +3,9 @@
 import os
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
-import json
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
+from datetime import datetime
+from typing import Dict, List, Any
 from enum import Enum
-
 from toolbox_core import ToolboxSyncClient
 from dotenv import load_dotenv
 

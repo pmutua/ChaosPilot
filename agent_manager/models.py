@@ -1,6 +1,6 @@
+import datetime
 from sqlalchemy import Column, Integer, String, DateTime, Text, JSON
 from sqlalchemy.ext.declarative import declarative_base
-import datetime
 
 Base = declarative_base()
 
