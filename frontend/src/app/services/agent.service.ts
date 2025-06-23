@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
   providedIn: 'root'
 })
 export class AgentService {
-  private apiUrl = 'http://localhost:8000';  // Hardcode for now to ensure correct URL
+  private apiUrl = environment.apiUrl
   private appName = 'agent_manager';
   private userId = `u_${uuidv4().slice(0, 8)}`;
   private sessionId = `s_${uuidv4().slice(0, 8)}`;
