@@ -7,12 +7,14 @@ from datetime import datetime
 from typing import Dict, List, Any
 from enum import Enum
 from toolbox_core import ToolboxSyncClient
+from agent_manger.config import TOOLBOX_URL
+
 from dotenv import load_dotenv
 
 
 load_dotenv()
 
-toolbox = ToolboxSyncClient("http://127.0.0.1:5000")
+toolbox = ToolboxSyncClient(TOOLBOX_URL)
 tools = toolbox.load_toolset("action_recommender_toolset")
 
 
