@@ -36,7 +36,9 @@ ChaosPilot is a full-stack AI platform for log analysis, incident detection, and
 - **Agent Manager:**
   - Receives user requests and delegates to specialized sub-agents.
 - **Agent Handoffs:**
-  - Workflows are designed for agent handoff (e.g., detector → planner → fixer/notifier).
+  - Workflows are designed for dynamic agent handoff (e.g., detector → planner → fixer/notifier). If a sub-agent determines another agent is better suited for the next step, it delegates the task.
+- **Sub-Agent LLM Access:**
+  - Sub-agents can directly invoke Gemini (Google AI Platform) for LLM-powered analysis, classification, and planning, not just the main agent manager.
 - **Dynamic Toolsets:**
   - Each agent can invoke tools from the ADK toolbox, with toolsets defined per agent type.
 - **Frontend Visualization:**
@@ -47,14 +49,14 @@ ChaosPilot is a full-stack AI platform for log analysis, incident detection, and
 ## 4. Google Cloud & AI Services (including Gemini)
 
 - **BigQuery:**
-  - Stores and queries logs, incident data. Agents use BigQuery for analytics and context retrieval.
+  - Stores and queries logs, incident data. Agents use the mcp-toolbox to connect to BigQuery, retrieve logs, and perform analytics and context retrieval.
 - **Cloud Logging:**
-  - Ingests and manages raw logs. Scripts in `/scripts/` support log injection and management.
+  - Ingests and manages raw logs. Logs are exported (sunk) from Cloud Logging to BigQuery for structured querying and analysis. Scripts in `/scripts/` support log injection, management, and sink setup.
 - **Gemini LLM (Google AI Platform):**
-  - Backend calls Gemini for advanced log analysis, incident classification, and remediation planning.
+  - Sub-agents and the main agent manager can each call Gemini for advanced log analysis, incident classification, and remediation planning.
   - All LLM calls are backend-only. There is currently no retrieval-augmented generation (RAG) pipeline, embedding generation, or vector similarity search implemented in the codebase. If RAG is implemented in the future, it will follow strict security and privacy guidelines.
 - **ADK Toolbox:**
-  - All tools and toolsets are defined for use by agents, ensuring schema compliance and dynamic extensibility.
+  - All tools and toolsets are defined for use by agents, ensuring schema compliance and dynamic extensibility. The mcp-toolbox provides the interface and schema for agents to interact with BigQuery and other data sources.
 
 ---
 
@@ -83,8 +85,8 @@ ChaosPilot is a full-stack AI platform for log analysis, incident detection, and
 3. Frontend sends authenticated request to FastAPI backend.
 4. Backend authenticates and invokes the main ADK agent.
 5. Agent manager delegates to the appropriate sub-agent.
-6. Sub-agent queries BigQuery, retrieves relevant logs, and may send those logs or summaries to the LLM (Gemini or Azure) for analysis.
-7. Agent manager may hand off to other agents as needed.
+6. Sub-agent queries BigQuery (via the mcp-toolbox), retrieves relevant logs, and may send those logs or summaries to Gemini for LLM-powered analysis.
+7. Agent handoff is dynamic: if a sub-agent determines another is better suited for the next step, it delegates the task.
 8. Backend streams response to frontend, which visualizes the multi-agent workflow.
 
 ---
