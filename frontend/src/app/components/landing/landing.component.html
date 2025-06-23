@@ -1,0 +1,220 @@
+﻿<div class="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-blue-50">
+  <!-- Navigation -->
+  <nav class="bg-white/80 backdrop-blur-sm shadow-sm border-b border-gray-200 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center py-4">
+        <div class="flex items-center space-x-3">
+          <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
+            <span class="text-white font-bold text-sm">CP</span>
+          </div>
+          <span class="text-xl font-bold text-gray-900">ChaosPilot</span>
+        </div>
+        <div class="flex items-center space-x-4">
+          <button *ngIf="isAuthenticated" (click)="viewDashboard()" class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors">
+            Dashboard
+          </button>
+          <button *ngIf="!isAuthenticated" (click)="showLoginForm = true" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
+            Sign In
+          </button>
+          <button *ngIf="isAuthenticated" (click)="signOut()" class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors">
+            Sign Out
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Authentication Modal -->
+  <div *ngIf="showLoginForm" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-gray-900">{{ isSignUp ? 'Create Account' : 'Sign In' }}</h2>
+        <button (click)="showLoginForm = false" class="text-gray-400 hover:text-gray-600" aria-label="Close modal" title="Close modal">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      
+      <form (ngSubmit)="isSignUp ? signUp() : signIn()" #authForm="ngForm">
+        <div class="mb-4">
+          <label for="email" class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+          <input 
+            type="email" 
+            id="email" 
+            name="email"
+            [(ngModel)]="authData.email"
+            required
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Enter your email">
+        </div>
+        
+        <div class="mb-6">
+          <label for="password" class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+          <input 
+            type="password" 
+            id="password" 
+            name="password"
+            [(ngModel)]="authData.password"
+            required
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Enter your password">
+        </div>
+        
+        <div *ngIf="authError" class="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+          {{ authError }}
+        </div>
+        
+        <div *ngIf="authMessage" class="mb-4 p-3 bg-blue-100 border border-blue-400 text-blue-700 rounded">
+          {{ authMessage }}
+        </div>
+        
+        <button 
+          type="submit" 
+          [disabled]="!authForm.valid || isLoading"
+          class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
+          {{ isLoading ? 'Loading...' : (isSignUp ? 'Create Account' : 'Sign In') }}
+        </button>
+      </form>
+      
+      <div class="mt-4 text-center">
+        <button 
+          (click)="isSignUp = !isSignUp; authError = ''; authMessage = ''" 
+          class="text-indigo-600 hover:text-indigo-800 text-sm">
+          {{ isSignUp ? 'Already have an account? Sign In' : 'Need an account? Sign Up' }}
+        </button>
+      </div>
+      
+      <div *ngIf="!isSignUp" class="mt-4 text-center">
+        <button 
+          (click)="resetPassword()" 
+          class="text-gray-600 hover:text-gray-800 text-sm">
+          Forgot your password?
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hero Section -->
+  <section class="py-20 lg:py-32">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center">
+        <div class="flex justify-center mb-8">
+          <div class="w-24 h-24 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl flex items-center justify-center text-white text-4xl font-bold shadow-xl">
+            🚀
+          </div>
+        </div>
+        <h1 class="text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
+          ChaosPilot
+        </h1>
+        <p class="text-xl md:text-2xl text-gray-600 mb-8 max-w-4xl mx-auto leading-relaxed">
+          Autonomous log analysis powered by real BigQuery data and intelligent AI agents
+        </p>
+        <div class="flex flex-col sm:flex-row gap-4 justify-center">
+          <button *ngIf="isAuthenticated" (click)="getStarted()" class="bg-indigo-600 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+            Start Analysis
+          </button>
+          <button *ngIf="!isAuthenticated" (click)="showLoginForm = true" class="bg-indigo-600 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+            Get Started
+          </button>
+          <button *ngIf="isAuthenticated" (click)="viewDashboard()" class="border-2 border-indigo-600 text-indigo-600 px-8 py-4 rounded-xl text-lg font-semibold hover:bg-indigo-50 transition-all duration-200">
+            View Dashboard
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="py-20 lg:py-32 bg-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-6">
+          Powered by Advanced AI Agents
+        </h2>
+        <p class="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+          Our sophisticated backend agents work together to analyze, classify, and resolve incidents automatically
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <!-- Log Analyzer -->
+        <div class="bg-gradient-to-br from-blue-50 to-indigo-50 p-8 rounded-2xl border border-blue-100 hover:shadow-lg transition-all duration-200 transform hover:-translate-y-1">
+          <div class="text-4xl mb-4">🔍</div>
+          <h3 class="text-xl font-semibold text-gray-900 mb-3">Log Analyzer</h3>
+          <p class="text-gray-600 mb-4 leading-relaxed">
+            Analyzes millions of logs from BigQuery in real-time, detecting patterns, anomalies, and critical issues.
+          </p>
+        </div>
+
+        <!-- Response Planner -->
+        <div class="bg-gradient-to-br from-green-50 to-emerald-50 p-8 rounded-2xl border border-green-100 hover:shadow-lg transition-all duration-200 transform hover:-translate-y-1">
+          <div class="text-4xl mb-4">📋</div>
+          <h3 class="text-xl font-semibold text-gray-900 mb-3">Response Planner</h3>
+          <p class="text-gray-600 mb-4 leading-relaxed">
+            Generates comprehensive recovery strategies and action plans based on incident analysis.
+          </p>
+        </div>
+
+        <!-- Fix Recommender -->
+        <div class="bg-gradient-to-br from-yellow-50 to-orange-50 p-8 rounded-2xl border border-yellow-100 hover:shadow-lg transition-all duration-200 transform hover:-translate-y-1">
+          <div class="text-4xl mb-4">🛠️</div>
+          <h3 class="text-xl font-semibold text-gray-900 mb-3">Fix Recommender</h3>
+          <p class="text-gray-600 mb-4 leading-relaxed">
+            Recommends specific fixes and solutions with confidence scores and implementation details.
+          </p>
+        </div>
+
+        <!-- Auto-Fixer -->
+        <div class="bg-gradient-to-br from-purple-50 to-pink-50 p-8 rounded-2xl border border-purple-100 hover:shadow-lg transition-all duration-200 transform hover:-translate-y-1">
+          <div class="text-4xl mb-4">⚡</div>
+          <h3 class="text-xl font-semibold text-gray-900 mb-3">Auto-Fixer</h3>
+          <p class="text-gray-600 mb-4 leading-relaxed">
+            Automatically applies fixes with safety checks and rollback capabilities.
+          </p>
+        </div>
+
+        <!-- Alert Manager -->
+        <div class="bg-gradient-to-br from-red-50 to-rose-50 p-8 rounded-2xl border border-red-100 hover:shadow-lg transition-all duration-200 transform hover:-translate-y-1">
+          <div class="text-4xl mb-4">📢</div>
+          <h3 class="text-xl font-semibold text-gray-900 mb-3">Alert Manager</h3>
+          <p class="text-gray-600 mb-4 leading-relaxed">
+            Manages notifications and escalations with intelligent routing and prioritization.
+          </p>
+        </div>
+
+        <!-- BigQuery Integration -->
+        <div class="bg-gradient-to-br from-gray-50 to-slate-50 p-8 rounded-2xl border border-gray-100 hover:shadow-lg transition-all duration-200 transform hover:-translate-y-1">
+          <div class="text-4xl mb-4">📊</div>
+          <h3 class="text-xl font-semibold text-gray-900 mb-3">BigQuery Integration</h3>
+          <p class="text-gray-600 mb-4 leading-relaxed">
+            Direct access to production log data with real-time querying and analysis capabilities.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="py-20 lg:py-32 bg-gradient-to-br from-indigo-600 to-purple-700">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <h2 class="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-6">
+        Ready to Transform Your Log Analysis?
+      </h2>
+      <p class="text-xl text-indigo-100 mb-8 max-w-2xl mx-auto leading-relaxed">
+        Join the future of autonomous incident response with ChaosPilot's AI-powered platform
+      </p>
+      <div class="flex flex-col sm:flex-row gap-4 justify-center">
+        <button *ngIf="isAuthenticated" (click)="getStarted()" class="bg-white text-indigo-600 px-8 py-4 rounded-xl text-lg font-semibold hover:bg-gray-50 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+          Start Free Analysis
+        </button>
+        <button *ngIf="!isAuthenticated" (click)="showLoginForm = true" class="bg-white text-indigo-600 px-8 py-4 rounded-xl text-lg font-semibold hover:bg-gray-50 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+          Get Started
+        </button>
+        <button *ngIf="isAuthenticated" (click)="viewDashboard()" class="border-2 border-white text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-white hover:text-indigo-600 transition-all duration-200">
+          View Live Demo
+        </button>
+      </div>
+    </div>
+  </section>
+</div>

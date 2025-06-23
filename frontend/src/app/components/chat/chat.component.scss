@@ -1,0 +1,53 @@
+.animate-blink {
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+// Conversation flow event styles
+.event-thinking {
+  background-color: #f3f4f6;
+  border-left: 3px solid #6b7280;
+  animation: fadeIn 0.5s ease-in;
+}
+
+.event-transfer {
+  background-color: #dbeafe;
+  border-left: 3px solid #3b82f6;
+  animation: fadeIn 0.5s ease-in;
+}
+
+.event-error {
+  background-color: #fee2e2;
+  border-left: 3px solid #ef4444;
+  animation: fadeIn 0.5s ease-in;
+}
+
+.event-default {
+  background-color: #f9fafb;
+  border-left: 3px solid #9ca3af;
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+// Typing indicator
+.typing-indicator {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #e5e7eb;
+  border-radius: 50%;
+  border-top-color: #3b82f6;
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

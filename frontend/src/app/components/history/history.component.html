@@ -1,0 +1,20 @@
+<div class="max-w-4xl mx-auto py-6">
+  <h2 class="text-2xl font-bold text-gray-800 mb-6">Past Incidents</h2>
+  <div class="bg-white shadow rounded-lg overflow-hidden">
+    <ul class="divide-y divide-gray-200">
+      <li *ngFor="let chat of pastChats" class="p-4 hover:bg-gray-50 cursor-pointer">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-medium text-gray-900">{{chat.title}}</h3>
+            <p class="text-sm text-gray-500">{{chat.date}}</p>
+          </div>
+          <div>
+            <span [class]="chat.status === 'Resolved' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'" class="px-3 py-1 rounded-full text-xs font-medium">
+              {{chat.status}}
+            </span>
+          </div>
+        </div>
+      </li>
+    </ul>
+  </div>
+</div>

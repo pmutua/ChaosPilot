@@ -1,0 +1,94 @@
+// Dashboard specific styles
+.dashboard-card {
+  transition: all 0.2s ease-in-out;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  }
+}
+
+// Metric card animations
+.metric-card {
+  animation: fadeInUp 0.6s ease-out;
+  
+  @for $i from 1 through 4 {
+    &:nth-child(#{$i}) {
+      animation-delay: #{$i * 0.1}s;
+    }
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Status indicator pulse animation
+.status-pulse {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+// Quick action hover effects
+.quick-action {
+  transition: all 0.2s ease-in-out;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  }
+}
+
+// Incident row hover effects
+.incident-row {
+  transition: background-color 0.2s ease-in-out;
+  
+  &:hover {
+    background-color: #f9fafb;
+  }
+}
+
+// Agent performance row
+.agent-row {
+  transition: all 0.2s ease-in-out;
+  
+  &:hover {
+    background-color: #f9fafb;
+  }
+}
+
+// Responsive grid adjustments
+@media (max-width: 768px) {
+  .metric-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .quick-action-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .quick-action-grid {
+    grid-template-columns: 1fr;
+  }
+} 

@@ -1,0 +1,14 @@
+<div class="bg-white p-4 border-b border-gray-200">
+  <div class="flex justify-center">
+    <div class="flex items-center space-x-4">
+      <div *ngFor="let agent of agentMeta; let last = last" class="flex items-center">
+        <div [class]="isActive(agent.key) ? 'bg-indigo-100 border-indigo-500' : isCompleted(agent.key) ? 'bg-green-50 border-green-500' : 'bg-gray-50 border-gray-300'"
+             class="h-12 w-12 rounded-full border-2 flex flex-col items-center justify-center transition-all duration-300">
+          <span class="text-2xl">{{agent.icon}}</span>
+          <span class="text-xs font-medium mt-1">{{agent.name}}</span>
+        </div>
+        <div *ngIf="!last" class="ml-2 w-8 h-0.5 bg-gray-300"></div>
+      </div>
+    </div>
+  </div>
+</div>

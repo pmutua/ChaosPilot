@@ -1,0 +1,206 @@
+<div class="flex flex-col h-full bg-gray-50">
+  <!-- Header -->
+  <div class="bg-white border-b border-gray-200 px-6 py-4">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-semibold text-gray-900">ChaosPilot</h1>
+        <p class="text-sm text-gray-500">Autonomous Log Analysis & Incident Response</p>
+  </div>
+      <div class="flex items-center space-x-4">
+        <div class="flex items-center space-x-2">
+          <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          <span class="text-sm text-gray-600">System Active</span>
+        </div>
+        <button 
+          (click)="toggleWorkflowTracker()" 
+          class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+        >
+          {{ showWorkflowTracker ? 'Hide' : 'Show' }} Workflow
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex flex-1 overflow-hidden">
+    <!-- Main Chat Area -->
+    <div class="flex-1 flex flex-col">
+      <!-- Messages -->
+      <div class="flex-1 overflow-y-auto p-6 space-y-4" #messagesContainer>
+        <!-- Welcome Message -->
+        <div *ngIf="messages.length === 0" class="text-center py-12">
+          <div class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span class="text-2xl">🚀</span>
+          </div>
+          <h2 class="text-xl font-semibold text-gray-900 mb-2">Welcome to ChaosPilot</h2>
+          <p class="text-gray-600 mb-6 max-w-md mx-auto">
+            I'm your autonomous log analysis assistant. I can analyze errors, classify incidents, and recommend fixes automatically using real BigQuery data.
+          </p>
+          
+          <!-- Quick Start Actions -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
+            <button 
+              *ngFor="let action of quickActions.slice(0, 3)" 
+              (click)="startQuickAction(action)"
+              class="bg-white p-4 rounded-lg border border-gray-200 hover:border-indigo-300 hover:shadow-md transition-all text-left"
+            >
+              <div class="text-2xl mb-2">{{ action.icon }}</div>
+              <h3 class="font-medium text-gray-900 mb-1">{{ action.title }}</h3>
+              <p class="text-sm text-gray-600">{{ action.description }}</p>
+            </button>
+          </div>
+        </div>
+
+        <!-- Messages -->
+        <div *ngFor="let message of messages; trackBy: trackByMessage" class="flex">
+          <div *ngIf="message.role === 'user'" class="flex-1 flex justify-end">
+            <div class="bg-indigo-600 text-white px-4 py-3 rounded-lg max-w-3xl">
+              <p class="text-sm">{{ message.content }}</p>
+            </div>
+          </div>
+          
+          <div *ngIf="message.role === 'assistant'" class="flex-1">
+            <div class="bg-white border border-gray-200 rounded-lg p-4 max-w-3xl">
+              <div class="flex items-center mb-2">
+                <span class="text-lg mr-2">🤖</span>
+                <span class="text-sm font-medium text-gray-700">ChaosPilot</span>
+                <span *ngIf="message.agent" class="ml-2 px-2 py-1 bg-gray-100 text-xs rounded-full text-gray-600">
+                  {{ message.agent }}
+                </span>
+                <span *ngIf="message.confidence" 
+                      [class]="getConfidenceColor(message.confidence)"
+                      class="ml-2 text-xs font-medium">
+                  {{ formatConfidence(message.confidence) }} confidence
+                </span>
+              </div>
+              <div class="prose prose-sm max-w-none">
+                <p [innerHTML]="message.content"></p>
+              </div>
+              
+              <!-- Tools Used -->
+              <div *ngIf="message.toolsUsed && message.toolsUsed.length > 0" class="mt-3 pt-3 border-t border-gray-100">
+                <div class="flex items-center text-xs text-gray-500">
+                  <span class="mr-2">🔧 Tools used:</span>
+                  <span *ngFor="let tool of message.toolsUsed; let last = last">
+                    {{ tool }}{{ !last ? ', ' : '' }}
+                  </span>
+                </div>
+              </div>
+              
+              <!-- Structured Data Viewer -->
+              <app-structured-data-viewer 
+                *ngIf="message.structuredData && message.role === 'assistant'"
+                [data]="message.structuredData"
+                [agentName]="message.agent || ''"
+                [confidence]="message.confidence || null">
+              </app-structured-data-viewer>
+            </div>
+          </div>
+
+          <div *ngIf="message.role === 'thinking'" class="flex-1">
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-3xl">
+              <div class="flex items-center mb-2">
+                <span class="text-lg mr-2">🧠</span>
+                <span class="text-sm font-medium text-blue-700">Analyzing...</span>
+                <span *ngIf="message.agent" class="ml-2 px-2 py-1 bg-blue-100 text-xs rounded-full text-blue-600">
+                  {{ message.agent }}
+                </span>
+              </div>
+              <p class="text-sm text-blue-600">{{ message.content }}</p>
+            </div>
+          </div>
+
+          <div *ngIf="message.role === 'transfer'" class="flex-1">
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-3xl">
+              <div class="flex items-center mb-2">
+                <span class="text-lg mr-2">🔄</span>
+                <span class="text-sm font-medium text-yellow-700">Transferring to {{ message.agent }}</span>
+              </div>
+              <p class="text-sm text-yellow-600">{{ message.content }}</p>
+            </div>
+          </div>
+
+          <div *ngIf="message.role === 'error'" class="flex-1">
+            <div class="bg-red-50 border border-red-200 rounded-lg p-4 max-w-3xl">
+              <div class="flex items-center mb-2">
+                <span class="text-lg mr-2">⚠️</span>
+                <span class="text-sm font-medium text-red-700">Error</span>
+              </div>
+              <p class="text-sm text-red-600">{{ message.content }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div *ngIf="isLoading" class="flex-1">
+          <div class="bg-white border border-gray-200 rounded-lg p-4 max-w-3xl">
+            <div class="flex items-center mb-2">
+              <span class="text-lg mr-2">🤖</span>
+              <span class="text-sm font-medium text-gray-700">ChaosPilot</span>
+            </div>
+      <div class="flex items-center space-x-2">
+              <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+              <span class="text-sm text-gray-600">Processing your request...</span>
+            </div>
+          </div>
+        </div>
+  </div>
+
+  <!-- Input Area -->
+      <div class="bg-white border-t border-gray-200 p-6">
+        <div class="flex space-x-4">
+          <div class="flex-1">
+            <textarea
+        [(ngModel)]="userInput"
+              (keydown)="onEnterPress($event)"
+              placeholder="Describe the issue, paste logs, or ask for analysis..."
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+              rows="2"
+            ></textarea>
+          </div>
+          <button
+            (click)="sendMessage()"
+            [disabled]="!userInput.trim() || isLoading"
+            class="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <span *ngIf="!isLoading">Send</span>
+            <div *ngIf="isLoading" class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+          </button>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="mt-4 flex flex-wrap gap-2">
+      <button
+            *ngFor="let action of quickActions"
+            (click)="startQuickAction(action)"
+            class="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm hover:bg-gray-200 transition-colors"
+          >
+            {{ action.title }}
+      </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Workflow Tracker Sidebar -->
+    <div *ngIf="showWorkflowTracker" class="w-80 bg-white border-l border-gray-200 p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">Workflow Progress</h3>
+      <div class="space-y-4">
+        <div *ngFor="let phase of phases" class="flex items-center space-x-3">
+          <div class="flex-shrink-0">
+            <div 
+              [class]="getPhaseStatusClass(phase.status)"
+              class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium"
+            >
+              <span *ngIf="phase.status === 'completed'">✓</span>
+              <span *ngIf="phase.status === 'active'">{{ phase.icon }}</span>
+              <span *ngIf="phase.status === 'pending'">{{ phase.number }}</span>
+            </div>
+          </div>
+          <div class="flex-1">
+            <h4 class="text-sm font-medium text-gray-900">{{ phase.name }}</h4>
+            <p class="text-xs text-gray-500">{{ phase.description }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

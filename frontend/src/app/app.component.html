@@ -1,0 +1,15 @@
+<div class="flex h-screen bg-gray-50">
+  <!-- Sidebar - Only show when not on landing page -->
+  <app-side-bar *ngIf="showSidebar"></app-side-bar>
+  
+  <!-- Main Content -->
+  <div class="flex-1 flex flex-col overflow-hidden">
+    <!-- Top Bar - Only show when not on landing page -->
+    <app-top-bar *ngIf="showTopBar"></app-top-bar>
+    
+    <!-- Main Content Area -->
+    <main class="flex-1 overflow-y-auto">
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+</div>

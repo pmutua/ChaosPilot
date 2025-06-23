@@ -1,0 +1,151 @@
+// Landing page specific styles
+
+// Hero section animations
+.hero-gradient {
+  background: linear-gradient(135deg, #e0e7ff 0%, #dbeafe 100%);
+}
+
+// Floating elements animation
+.floating-element {
+  animation: float 6s ease-in-out infinite;
+  
+  &:nth-child(2) {
+    animation-delay: -2s;
+  }
+  
+  &:nth-child(3) {
+    animation-delay: -4s;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+// Feature card hover effects
+.feature-card {
+  transition: all 0.3s ease-in-out;
+  
+  &:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  }
+}
+
+// Step connector animation
+.step-connector {
+  position: relative;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: -2rem;
+    width: 2rem;
+    height: 2px;
+    background: linear-gradient(90deg, #6366f1, #a5b4fc);
+    transform: translateY(-50%);
+    animation: pulse 2s infinite;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+// CTA button hover effects
+.cta-button {
+  transition: all 0.3s ease-in-out;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  }
+}
+
+// Navigation hover effects
+.nav-link {
+  transition: all 0.2s ease-in-out;
+  
+  &:hover {
+    transform: translateY(-1px);
+  }
+}
+
+// Responsive adjustments
+@media (max-width: 768px) {
+  .hero-title {
+    font-size: 2.5rem;
+  }
+  
+  .feature-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .step-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-title {
+    font-size: 2rem;
+  }
+  
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+// Smooth scroll behavior
+html {
+  scroll-behavior: smooth;
+}
+
+// Loading animations
+.fade-in {
+  animation: fadeIn 0.8s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Staggered animation for features
+.feature-item {
+  animation: fadeInUp 0.6s ease-out;
+  
+  @for $i from 1 through 4 {
+    &:nth-child(#{$i}) {
+      animation-delay: #{$i * 0.1}s;
+    }
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+} 
