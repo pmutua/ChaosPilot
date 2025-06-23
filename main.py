@@ -2,14 +2,13 @@ import os
 
 import uvicorn
 from google.adk.cli.fast_api import get_fast_api_app
-from fastapi.middleware.cors import CORSMiddleware
 
 # Get the directory where main.py is located
 AGENT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Example session DB URL (e.g., SQLite)
 # SESSION_DB_URL = "sqlite:///./sessions.db"
 # Example allowed origins for CORS
-ALLOWED_ORIGINS = ["https://chaos-pilot.vercel.app"]
+ALLOWED_ORIGINS = ["*"]
 # Set web=True if you intend to serve a web interface, False otherwise
 SERVE_WEB_INTERFACE = True
 
@@ -21,15 +20,6 @@ app = get_fast_api_app(
     # session_service_uri=SESSION_DB_URL,
     allow_origins=ALLOWED_ORIGINS,
     web=SERVE_WEB_INTERFACE,
-)
-
-# --- Add CORS middleware explicitly ---
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,  # Or ["*"]
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
 )
 
 if __name__ == "__main__":
