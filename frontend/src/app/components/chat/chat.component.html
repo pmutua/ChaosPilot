@@ -51,95 +51,73 @@
         </div>
 
         <!-- Messages -->
-        <div *ngFor="let message of messages; trackBy: trackByMessage" class="flex">
-          <div *ngIf="message.role === 'user'" class="flex-1 flex justify-end">
-            <div class="bg-indigo-600 text-white px-4 py-3 rounded-lg max-w-3xl">
-              <p class="text-sm">{{ message.content }}</p>
+        <div *ngFor="let message of messages; trackBy: trackByMessage" class="message-container">
+          <!-- User Message -->
+          <div *ngIf="message.role === 'user'" class="flex items-start justify-end mb-4">
+            <div class="bg-blue-100 rounded-lg p-3 max-w-3/4">
+              <p class="text-gray-800">{{ message.content }}</p>
             </div>
           </div>
-          
-          <div *ngIf="message.role === 'assistant'" class="flex-1">
-            <div class="bg-white border border-gray-200 rounded-lg p-4 max-w-3xl">
-              <div class="flex items-center mb-2">
-                <span class="text-lg mr-2">🤖</span>
-                <span class="text-sm font-medium text-gray-700">ChaosPilot</span>
-                <span *ngIf="message.agent" class="ml-2 px-2 py-1 bg-gray-100 text-xs rounded-full text-gray-600">
-                  {{ message.agent }}
-                </span>
-                <span *ngIf="message.confidence" 
-                      [class]="getConfidenceColor(message.confidence)"
-                      class="ml-2 text-xs font-medium">
-                  {{ formatConfidence(message.confidence) }} confidence
-                </span>
-              </div>
-              <div class="prose prose-sm max-w-none">
-                <p [innerHTML]="message.content"></p>
-              </div>
-              
-              <!-- Tools Used -->
-              <div *ngIf="message.toolsUsed && message.toolsUsed.length > 0" class="mt-3 pt-3 border-t border-gray-100">
-                <div class="flex items-center text-xs text-gray-500">
-                  <span class="mr-2">🔧 Tools used:</span>
-                  <span *ngFor="let tool of message.toolsUsed; let last = last">
-                    {{ tool }}{{ !last ? ', ' : '' }}
-                  </span>
+
+          <!-- Assistant Message -->
+          <div *ngIf="message.role === 'assistant'" class="flex items-start mb-4">
+            <div class="bg-white rounded-lg p-4 shadow-md max-w-3/4 w-full border border-indigo-100">
+              <!-- Header -->
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center space-x-2">
+                  <span class="text-lg">{{ message.agent === 'enhanced_detector' ? '��' : '🤖' }}</span>
+                  <span class="font-semibold text-indigo-700">{{ message.agent || 'Assistant' }}</span>
+                  <span class="text-xs text-gray-400 ml-2">{{ message.timestamp | date:'short' }}</span>
                 </div>
               </div>
-              
-              <!-- Structured Data Viewer -->
-              <app-structured-data-viewer 
-                *ngIf="message.structuredData && message.role === 'assistant'"
-                [data]="message.structuredData"
-                [agentName]="message.agent || ''"
-                [confidence]="message.confidence || null">
-              </app-structured-data-viewer>
+              <!-- Markdown Content -->
+              <div *ngIf="message.content" class="prose max-w-none" [innerHTML]="message.content | markdown"></div>
+              <!-- Structured Data Viewer (if any) -->
+              <div *ngIf="message.structuredData && message.structuredData.length">
+                <table class="min-w-full text-xs border mb-2">
+                  <tr class="bg-gray-100">
+                    <th *ngFor="let key of getTableKeys(message.structuredData)">{{ key }}</th>
+                  </tr>
+                  <tr *ngFor="let row of message.structuredData">
+                    <td *ngFor="let key of getTableKeys(message.structuredData)" class="border px-2 py-1">{{ row[key] }}</td>
+                  </tr>
+                </table>
+              </div>
             </div>
           </div>
 
-          <div *ngIf="message.role === 'thinking'" class="flex-1">
-            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-3xl">
-              <div class="flex items-center mb-2">
-                <span class="text-lg mr-2">🧠</span>
-                <span class="text-sm font-medium text-blue-700">Analyzing...</span>
-                <span *ngIf="message.agent" class="ml-2 px-2 py-1 bg-blue-100 text-xs rounded-full text-blue-600">
-                  {{ message.agent }}
-                </span>
-              </div>
-              <p class="text-sm text-blue-600">{{ message.content }}</p>
+          <!-- Thinking Message -->
+          <div *ngIf="message.role === 'thinking'" class="flex items-start mb-4">
+            <div class="bg-gray-50 rounded-lg p-3 shadow-sm max-w-3/4">
+              <p class="text-gray-600 text-sm">{{ message.content }}</p>
             </div>
           </div>
 
-          <div *ngIf="message.role === 'transfer'" class="flex-1">
-            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-3xl">
-              <div class="flex items-center mb-2">
-                <span class="text-lg mr-2">🔄</span>
-                <span class="text-sm font-medium text-yellow-700">Transferring to {{ message.agent }}</span>
-              </div>
-              <p class="text-sm text-yellow-600">{{ message.content }}</p>
+          <!-- Transfer Message -->
+          <div *ngIf="message.role === 'transfer'" class="flex items-start mb-4">
+            <div class="bg-purple-50 rounded-lg p-3 shadow-sm max-w-3/4">
+              <p class="text-purple-600 text-sm">{{ message.content }}</p>
             </div>
           </div>
 
-          <div *ngIf="message.role === 'error'" class="flex-1">
-            <div class="bg-red-50 border border-red-200 rounded-lg p-4 max-w-3xl">
-              <div class="flex items-center mb-2">
-                <span class="text-lg mr-2">⚠️</span>
-                <span class="text-sm font-medium text-red-700">Error</span>
-              </div>
-              <p class="text-sm text-red-600">{{ message.content }}</p>
+          <!-- Error Message -->
+          <div *ngIf="message.role === 'error'" class="flex items-start mb-4">
+            <div class="bg-red-50 rounded-lg p-3 shadow-sm max-w-3/4">
+              <p class="text-red-600 text-sm">{{ message.content }}</p>
             </div>
           </div>
         </div>
 
         <!-- Loading Indicator -->
         <div *ngIf="isLoading" class="flex-1">
-          <div class="bg-white border border-gray-200 rounded-lg p-4 max-w-3xl">
-            <div class="flex items-center mb-2">
-              <span class="text-lg mr-2">🤖</span>
-              <span class="text-sm font-medium text-gray-700">ChaosPilot</span>
+          <div class="bg-white border border-gray-200 rounded-lg p-4 max-w-3xl animate-pulse">
+            <div class="flex items-center space-x-3">
+              <div class="h-4 w-4 bg-gray-200 rounded-full"></div>
+              <div class="h-4 w-24 bg-gray-200 rounded"></div>
             </div>
-      <div class="flex items-center space-x-2">
-              <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
-              <span class="text-sm text-gray-600">Processing your request...</span>
+            <div class="mt-3 space-y-2">
+              <div class="h-3 w-3/4 bg-gray-200 rounded"></div>
+              <div class="h-3 w-1/2 bg-gray-200 rounded"></div>
             </div>
           </div>
         </div>

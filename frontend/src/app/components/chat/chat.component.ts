@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, ViewChild, ElementRef, AfterViewChecked, OnDestroy } from '@angular/core';
 import { ChatService, Message } from '../../services/chat.service';
 import { Subscription } from 'rxjs';
-import { StructuredDataViewerComponent } from '../structured-data-viewer/structured-data-viewer.component';
+import { GoogleAdkService } from '../../services/google-adk.service';
+import { MarkdownPipe } from '../../pipes/markdown.pipe';
 
 interface QuickAction {
   title: string;
@@ -24,7 +25,7 @@ interface WorkflowPhase {
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, StructuredDataViewerComponent],
+  imports: [CommonModule, FormsModule, MarkdownPipe],
   selector: 'app-chat',
   templateUrl: './chat.component.html',
   styleUrls: ['./chat.component.scss']
@@ -134,7 +135,7 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
     }
   ];
 
-  constructor(private chatService: ChatService) {}
+  constructor(private chatService: ChatService, private googleAdkService: GoogleAdkService) {}
 
   ngOnInit(): void {
     this.subscriptions.push(
@@ -161,18 +162,13 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
 
   async sendMessage(): Promise<void> {
     if (!this.userInput.trim() || this.isLoading) return;
-
-    const message = this.userInput.trim();
+    const input = this.userInput.trim();
     this.userInput = '';
-
-    try {
-      await this.chatService.sendMessage(message);
-    } catch (error) {
-      console.error('Error sending message:', error);
-    }
+    await this.chatService.sendMessage(input);
   }
 
   startQuickAction(action: QuickAction): void {
+    if (this.isLoading) return;
     this.userInput = action.prompt;
     this.sendMessage();
   }
@@ -195,13 +191,11 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   getPhaseStatusClass(status: string): string {
     switch (status) {
       case 'completed':
-        return 'bg-green-500 text-white';
+        return 'bg-green-100 text-green-600';
       case 'active':
-        return 'bg-blue-500 text-white';
-      case 'pending':
-        return 'bg-gray-200 text-gray-600';
+        return 'bg-blue-100 text-blue-600';
       default:
-        return 'bg-gray-200 text-gray-600';
+        return 'bg-gray-100 text-gray-600';
     }
   }
 
@@ -222,18 +216,42 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   }
 
   private updateWorkflowProgress(): void {
-    // Update workflow based on actual agent usage
-    const hasDetector = this.messages.some(m => m.agent === 'detector');
-    const hasPlanner = this.messages.some(m => m.agent === 'planner');
-    const hasActionRecommender = this.messages.some(m => m.agent === 'action_recommender');
-    const hasFixer = this.messages.some(m => m.agent === 'fixer');
-    const hasNotifier = this.messages.some(m => m.agent === 'notifier');
+    // Reset all phases to pending
+    this.phases.forEach(phase => phase.status = 'pending');
 
-    this.phases[0].status = hasDetector ? 'completed' : 'pending';
-    this.phases[1].status = hasDetector ? 'completed' : 'pending'; // Classify is also detector
-    this.phases[2].status = hasPlanner ? 'completed' : (hasDetector ? 'active' : 'pending');
-    this.phases[3].status = hasActionRecommender ? 'completed' : (hasPlanner ? 'active' : 'pending');
-    this.phases[4].status = hasFixer ? 'completed' : (hasActionRecommender ? 'active' : 'pending');
-    this.phases[5].status = hasNotifier ? 'completed' : (hasFixer ? 'active' : 'pending');
+    // Update phase status based on messages
+    let lastActivePhase = '';
+    this.messages.forEach(message => {
+      if (message.agent) {
+        const phase = this.getPhaseForAgent(message.agent);
+        if (phase) {
+          if (lastActivePhase && lastActivePhase !== phase.id) {
+            const lastPhase = this.phases.find(p => p.id === lastActivePhase);
+            if (lastPhase) lastPhase.status = 'completed';
+          }
+          const currentPhase = this.phases.find(p => p.id === phase.id);
+          if (currentPhase) currentPhase.status = 'active';
+          lastActivePhase = phase.id;
+        }
+      }
+    });
+  }
+
+  private getPhaseForAgent(agent: string): WorkflowPhase | null {
+    const agentPhaseMap: { [key: string]: string } = {
+      'detector': 'analyze',
+      'enhanced_detector': 'analyze',
+      'planner': 'plan',
+      'action_recommender': 'recommend',
+      'fixer': 'execute',
+      'notifier': 'notify'
+    };
+
+    const phaseId = agentPhaseMap[agent];
+    return phaseId ? this.phases.find(p => p.id === phaseId) || null : null;
+  }
+
+  getTableKeys(data: any[]): string[] {
+    return data && data.length ? Object.keys(data[0]) : [];
   }
 } 
