@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Dict, List, Any
 from enum import Enum
 from toolbox_core import ToolboxSyncClient
-from agent_manger.config import TOOLBOX_URL
+from config import TOOLBOX_URL
 
 from dotenv import load_dotenv
 
