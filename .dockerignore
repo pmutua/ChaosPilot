@@ -1,0 +1,99 @@
+# --------------------
+# Python Artifacts
+# --------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pkl
+*.db
+*.sqlite3
+*.egg-info/
+.eggs/
+.env
+.venv/
+env/
+venv/
+*.log
+*.pot
+
+# Pipenv / Poetry files (if used)
+Pipfile
+Pipfile.lock
+poetry.lock
+
+# --------------------
+# Node / Angular Artifacts
+# --------------------
+node_modules/
+dist/
+.angular/
+npm-debug.log
+yarn-error.log
+yarn.lock
+package-lock.json
+
+# --------------------
+# OS & Editor Files
+# --------------------
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.bak
+*.tmp
+.vscode/
+.idea/
+*.iml
+
+# --------------------
+# Git & Build Tools
+# --------------------
+.git/
+.gitignore
+.gcloud/
+coverage/
+build/
+tmp/
+test/
+tests/
+docs/
+
+# --------------------
+# Docker-related
+# --------------------
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# --------------------
+# Cloud & Secrets
+# --------------------
+*.key
+*.pem
+*.crt
+*.env.*
+.envrc
+*.secret
+secrets.*
+credentials.json
+firebase.json
+serviceAccountKey.json
+
+# Ignore virtual environments
+.venv/
+
+# Ignore documentation and non-app folders
+assets/
+docs/
+frontend/
+mcp-toolbox/
+scripts/
+web/
+
+# Ignore editor settings
+*.swp
+*.DS_Store
+.vscode/
+.idea/
+
