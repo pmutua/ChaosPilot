@@ -1,4 +1,7 @@
 <div class="min-h-screen bg-gray-50">
+  <div *ngIf="toastMessage" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg animate-fade-in">
+    {{ toastMessage }}
+  </div>
   <!-- Header -->
   <div class="bg-white shadow-sm border-b border-gray-200">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -12,8 +15,15 @@
             <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
             <span class="text-sm text-gray-600">Backend Connected</span>
           </div>
-          <button (click)="triggerManualAnalysis()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
-            Start Analysis
+          <button (click)="startAnalysis()" [disabled]="isAnalyzing" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+            <span *ngIf="!isAnalyzing">Start Analysis</span>
+            <span *ngIf="isAnalyzing" class="flex items-center gap-2">
+              <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Analyzing...
+            </span>
           </button>
         </div>
       </div>
@@ -168,6 +178,59 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Error Message -->
+    <div *ngIf="error" class="mt-8 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+      {{ error }}
+    </div>
+
+    <!-- Results Section -->
+    <div *ngIf="analysisResults.length > 0" class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <!-- Text Responses -->
+      <div class="bg-white p-6 rounded-lg shadow-lg">
+        <h2 class="text-xl font-semibold mb-4">Latest Analysis</h2>
+        <div *ngIf="getLatestTextResponse()" class="prose max-w-none">
+          {{ getLatestTextResponse() }}
+        </div>
+        <div *ngIf="!getLatestTextResponse()" class="text-gray-500">
+          No text response available
+        </div>
+      </div>
+
+      <!-- Function Results -->
+      <div class="bg-white p-6 rounded-lg shadow-lg">
+        <h2 class="text-xl font-semibold mb-4">Function Results</h2>
+        <div class="space-y-6">
+          <!-- Function Calls -->
+          <div *ngIf="getFunctionCalls().length > 0">
+            <h3 class="text-lg font-medium mb-3">Function Calls</h3>
+            <div *ngFor="let call of getFunctionCalls()" class="mb-4 p-4 bg-gray-50 rounded">
+              <div class="font-medium text-blue-600">{{ call.name }}</div>
+              <div class="text-sm text-gray-600">{{ call.timestamp * 1000 | date:'medium' }}</div>
+              <pre class="mt-2 text-sm bg-gray-100 p-2 rounded overflow-x-auto">{{ call.args | json }}</pre>
+            </div>
+          </div>
+
+          <!-- Function Responses -->
+          <div *ngIf="getFunctionResults().length > 0">
+            <h3 class="text-lg font-medium mb-3">Function Responses</h3>
+            <div *ngFor="let result of getFunctionResults()" class="mb-4 p-4 bg-gray-50 rounded">
+              <div class="font-medium text-green-600">{{ result.name }}</div>
+              <div class="text-sm text-gray-600">{{ result.timestamp * 1000 | date:'medium' }}</div>
+              <pre class="mt-2 text-sm bg-gray-100 p-2 rounded overflow-x-auto">{{ result.result | json }}</pre>
+            </div>
+          </div>
+        </div>
+        <div *ngIf="getFunctionCalls().length === 0 && getFunctionResults().length === 0" class="text-gray-500">
+          No function results available
+        </div>
+      </div>
+    </div>
+
+    <!-- No Results State -->
+    <div *ngIf="!analysisResults.length && !isAnalyzing" class="mt-8 text-center py-12 text-gray-600">
+      Click "Start Analysis" to begin system analysis
     </div>
   </div>
 </div> 

@@ -3,6 +3,7 @@ import { AgentService } from '../../services/agent.service';
 import { SupabaseService } from '../../services/supabase.service';
 import { Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
+import { GoogleAdkService } from '../../services/google-adk.service';
 
 @Component({
   standalone: true,
@@ -17,7 +18,7 @@ export class TopBarComponent {
   isUserMenuOpen = false;
 
   constructor(
-    private agentService: AgentService,
+    private googleAdkService: GoogleAdkService,
     private supabaseService: SupabaseService,
     private router: Router
   ) {}
@@ -30,16 +31,17 @@ export class TopBarComponent {
     this.isUserMenuOpen = !this.isUserMenuOpen;
   }
 
-  quickAnalysis(): void {
-    console.log('Triggering quick analysis...');
-    this.agentService.runAgent('detector', 'Perform a quick analysis of recent logs')
-      .then(response => {
-        console.log('Quick analysis started:', response);
-        this.router.navigate(['/chat']);
-      })
-      .catch(error => {
-        console.error('Failed to start quick analysis:', error);
+  async quickAnalysis(): Promise<void> {
+    try {
+      await this.googleAdkService.createOrResumeSession();
+      await this.googleAdkService.sendMessage({
+        role: 'user',
+        parts: [{ text: 'Perform a quick analysis of recent logs' }]
       });
+      this.router.navigate(['/chat']);
+    } catch (error) {
+      console.error('Failed to start quick analysis:', error);
+    }
   }
 
   viewLogs(): void {

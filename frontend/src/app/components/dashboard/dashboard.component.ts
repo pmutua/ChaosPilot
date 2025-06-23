@@ -4,6 +4,10 @@ import { Router, RouterModule } from '@angular/router';
 import { AiStateService, AgentState, AutonomousWorkflow, IntelligentInsight } from '../../services/ai-state.service';
 import { Subscription } from 'rxjs';
 import { AgentService } from '../../services/agent.service';
+import { GoogleAdkService } from '../../services/google-adk.service';
+import { ADKResponse, ADKMessagePart } from '../../services/adk-interfaces';
+import { Subject, interval } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 
 interface SystemMetric {
   name: string;
@@ -241,16 +245,53 @@ export class DashboardComponent implements OnInit, OnDestroy {
   activeIncidents = 2;
 
   private subscriptions: Subscription[] = [];
+  isAnalyzing = false;
+  toastMessage: string | null = null;
+  private analysisInterval: any;
+  analysisResults: ADKResponse[] = [];
+  error: string | null = null;
+  private destroy$ = new Subject<void>();
+  private autoAnalysisInterval = 5 * 60 * 1000; // 5 minutes
 
-  constructor(private aiStateService: AiStateService, private router: Router, private agentService: AgentService) {}
+  constructor(
+    private aiStateService: AiStateService,
+    private router: Router,
+    private googleAdkService: GoogleAdkService,
+    private agentService: AgentService
+  ) {}
 
   ngOnInit(): void {
     this.initializeSubscriptions();
     this.generateSampleData();
+    // Autonomous: trigger analysis every 30 seconds
+    this.analysisInterval = setInterval(() => {
+      this.triggerManualAnalysis(true);
+    }, 30000);
+
+    // Set up automatic periodic analysis
+    interval(this.autoAnalysisInterval)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        if (!this.isAnalyzing) {
+          this.startAnalysis();
+        }
+      });
+
+    // Subscribe to analysis status changes
+    this.agentService.getAnalysisStatus()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(status => {
+        this.isAnalyzing = status;
+      });
   }
 
   ngOnDestroy(): void {
     this.subscriptions.forEach(sub => sub.unsubscribe());
+    if (this.analysisInterval) {
+      clearInterval(this.analysisInterval);
+    }
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   private initializeSubscriptions(): void {
@@ -557,23 +598,89 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   // Quick actions
-  triggerManualAnalysis(): void {
-    console.log('Triggering manual analysis...');
-    this.agentService.runAgentWithPayload({
-      newMessage: {
-        role: 'user',
+  async triggerManualAnalysis(isAuto = false): Promise<void> {
+    if (this.isAnalyzing) return;
+    this.isAnalyzing = true;
+    try {
+      console.log('Start Analysis button clicked, isAuto:', isAuto);
+      await this.googleAdkService.createOrResumeSession();
+      const agentResponse = await this.googleAdkService.sendMessage({
+        role: 'user' as 'user',
         parts: [
           { text: 'Use the detector agent to: Analyze the latest logs for anomalies' }
         ]
-      }
-    })
-      .then(response => {
-        console.log('Analysis started:', response);
-        // TODO: Update component state to reflect that analysis is running
-      })
-      .catch(error => {
-        console.error('Failed to start analysis:', error);
       });
+      console.log('agentResponse:', agentResponse);
+      let newResults = 0;
+      if (agentResponse && typeof agentResponse === 'object' && 'responses' in agentResponse && Array.isArray((agentResponse as any).responses)) {
+        (agentResponse as any).responses.forEach((resp: any, idx: number) => {
+          let description = '';
+          let structuredData = null;
+          if (resp.content && Array.isArray(resp.content.parts)) {
+            // Try to parse as JSON
+            const text = resp.content.parts.map((p: any) => p.text || '').join(' ');
+            try {
+              structuredData = JSON.parse(text);
+              description = '';
+            } catch {
+              description = text;
+              structuredData = null;
+            }
+          } else if (typeof resp.content === 'string') {
+            try {
+              structuredData = JSON.parse(resp.content);
+              description = '';
+            } catch {
+              description = resp.content;
+              structuredData = null;
+            }
+          } else if (resp.content) {
+            structuredData = resp.content;
+            description = '';
+          }
+          this.recentActivities.unshift({
+            id: `agent-response-${Date.now()}-${idx}`,
+            type: resp.type === 'final' ? 'analysis' : 'intermediate',
+            title: resp.type === 'final' ? 'Analysis Result' : 'Agent Update',
+            description,
+            structuredData,
+            timestamp: new Date(resp.timestamp ? resp.timestamp * 1000 : Date.now()),
+            agent: 'detector',
+            severity: 'info',
+            status: 'completed'
+          });
+          newResults++;
+        });
+      } else if (agentResponse && typeof agentResponse === 'object' && 'result' in agentResponse) {
+        console.log('Adding activity (result):', (agentResponse as any).result);
+        this.recentActivities.unshift({
+          id: `agent-response-${Date.now()}`,
+          type: 'analysis',
+          title: 'Analysis Result',
+          description: (agentResponse as any).result,
+          timestamp: new Date(),
+          agent: 'detector',
+          severity: 'info',
+          status: 'completed'
+        });
+        newResults++;
+      }
+      if (newResults > 0 && !isAuto) {
+        this.showToast(`Analysis complete: ${newResults} new result${newResults > 1 ? 's' : ''}`);
+      }
+    } catch (error) {
+      this.showToast('Failed to start analysis.');
+      console.error('Failed to start analysis:', error);
+    } finally {
+      this.isAnalyzing = false;
+    }
+  }
+
+  showToast(message: string) {
+    this.toastMessage = message;
+    setTimeout(() => {
+      this.toastMessage = null;
+    }, 3000);
   }
 
   viewDetailedReport(): void {
@@ -608,6 +715,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   navigateToAction(route: string): void {
+    console.log('Quick action button clicked, route:', route);
     this.router.navigate([route]);
   }
 
@@ -650,5 +758,70 @@ export class DashboardComponent implements OnInit, OnDestroy {
       default:
         return `${baseClasses} bg-gray-100 text-gray-800`;
     }
+  }
+
+  async startAnalysis() {
+    if (this.isAnalyzing) return;
+
+    try {
+      this.error = null;
+      this.analysisResults = await this.agentService.startAnalysis();
+    } catch (err) {
+      this.error = err instanceof Error ? err.message : 'An error occurred during analysis';
+      console.error('Analysis error:', err);
+    }
+  }
+
+  getLatestTextResponse(): string | null {
+    if (!this.analysisResults.length) return null;
+
+    // Get the last response that has text content
+    const lastTextResponse = [...this.analysisResults]
+      .reverse()
+      .find(response => 
+        response.content.parts.some(part => part.text)
+      );
+
+    if (!lastTextResponse) return null;
+
+    return lastTextResponse.content.parts
+      .filter(part => part.text)
+      .map(part => part.text)
+      .join('\n');
+  }
+
+  getFunctionResults(): any[] {
+    if (!this.analysisResults.length) return [];
+
+    return this.analysisResults
+      .flatMap(response => 
+        response.content.parts
+          .filter(part => part.functionResponse)
+          .map(part => ({
+            name: part.functionResponse!.name,
+            result: part.functionResponse!.response,
+            timestamp: response.timestamp
+          }))
+      );
+  }
+
+  getFunctionCalls(): any[] {
+    if (!this.analysisResults.length) return [];
+
+    return this.analysisResults
+      .flatMap(response => 
+        response.content.parts
+          .filter(part => part.functionCall)
+          .map(part => ({
+            name: part.functionCall!.name,
+            args: part.functionCall!.args,
+            timestamp: response.timestamp
+          }))
+      );
+  }
+
+  getLastAnalysisTime(): number | null {
+    if (!this.analysisResults.length) return null;
+    return Math.max(...this.analysisResults.map(r => r.timestamp));
   }
 } 

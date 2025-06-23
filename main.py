@@ -2,6 +2,7 @@ import os
 
 import uvicorn
 from google.adk.cli.fast_api import get_fast_api_app
+from fastapi.middleware.cors import CORSMiddleware
 
 # Get the directory where main.py is located
 AGENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -22,6 +23,14 @@ app = get_fast_api_app(
     web=SERVE_WEB_INTERFACE,
 )
 
+# --- Add CORS middleware explicitly ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,  # Or ["*"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 if __name__ == "__main__":
     # Use the PORT environment variable provided by Cloud Run, defaulting to 8080

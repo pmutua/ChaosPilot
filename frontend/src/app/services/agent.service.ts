@@ -1,160 +1,131 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders, HttpErrorResponse } from '@angular/common/http';
-import { Observable, throwError } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
-
-export interface ADKMessage {
-  role: 'user' | 'model';
-  parts: Array<{
-    text?: string;
-    functionCall?: any;
-    functionResponse?: any;
-  }>;
-}
-
-export interface ADKRunRequest {
-  newMessage: ADKMessage;
-}
-
-export interface ADKEvent {
-  content: {
-    parts: Array<{
-      text?: string;
-      functionCall?: any;
-      functionResponse?: any;
-    }>;
-    role: string;
-  };
-  invocationId: string;
-  author: string;
-  actions: {
-    stateDelta: any;
-    artifactDelta: any;
-    requestedAuthConfigs: any;
-  };
-  longRunningToolIds: string[];
-  id: string;
-  timestamp: number;
-}
-
-export interface ADKSession {
-  id: string;
-  appName: string;
-  userId: string;
-  state: any;
-  events: any[];
-  lastUpdateTime: number;
-}
+import { HttpClient } from '@angular/common/http';
+import { environment } from '../../environments/environment';
+import { ADKRequest, ADKResponse, ADKSession } from './adk-interfaces';
+import { BehaviorSubject, Observable } from 'rxjs';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AgentService {
-  private baseUrl = 'http://localhost:8000';
-  private currentUserId = 'chaospilot_user';
-  private currentSessionId = 'chaospilot_session';
+  private apiUrl = 'http://localhost:8000';  // Hardcode for now to ensure correct URL
   private appName = 'agent_manager';
+  private userId = `u_${uuidv4().slice(0, 8)}`;
+  private sessionId = `s_${uuidv4().slice(0, 8)}`;
+  private sessionInitialized = false;
+  private analysisInProgress = new BehaviorSubject<boolean>(false);
+  analysisInProgress$ = this.analysisInProgress.asObservable();
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) {
+    // Initialize session when service is created
+    this.initializeSession();
+  }
 
-  async runAgentWithPayload(payload: { newMessage: { role: string; parts: { text: string }[] } }): Promise<any> {
-    // Only send the payload as provided
+  private async initializeSession() {
+    if (this.sessionInitialized) return;
+    
     try {
-      const response = await this.http.post<ADKEvent[]>(`${this.baseUrl}/run`, payload).toPromise();
-      if (response) {
-        return this.processADKResponse(response, payload.newMessage.role);
+      // First, create the session explicitly
+      const response = await this.http.post<ADKSession>(
+        `${this.apiUrl}/apps/${this.appName}/users/${this.userId}/sessions/${this.sessionId}`,
+        {
+          state: {
+            initialized: true,
+            timestamp: new Date().toISOString()
+          }
+        }
+      ).toPromise();
+
+      console.log('Session initialized successfully:', response);
+      this.sessionInitialized = true;
+    } catch (error: any) {
+      console.error('Failed to initialize session:', error);
+      // If session exists, mark as initialized
+      if (error.error?.detail?.includes('Session already exists')) {
+        this.sessionInitialized = true;
       } else {
-        return { result: 'No response from agent' };
+        throw error;
       }
-    } catch (error) {
-      console.error('Error running agent:', error);
-      throw error;
     }
   }
 
-  async runAgent(agentName: string, userInput: string): Promise<any> {
-    // Legacy method for backward compatibility
-    const request: ADKRunRequest = {
+  // Public method to ensure session is initialized
+  public async ensureSession(): Promise<void> {
+    if (!this.sessionInitialized) {
+      await this.initializeSession();
+    }
+  }
+
+  public getSessionInfo() {
+    return {
+      appName: this.appName,
+      userId: this.userId,
+      sessionId: this.sessionId,
+      isInitialized: this.sessionInitialized
+    };
+  }
+
+  async startAnalysis(): Promise<ADKResponse[]> {
+    try {
+      this.analysisInProgress.next(true);
+      
+      // Ensure we have a valid session
+      await this.ensureSession();
+
+      // Prepare the request payload
+      const request: ADKRequest = {
+        appName: this.appName,
+        userId: this.userId,
+        sessionId: this.sessionId,
+        newMessage: {
+          role: 'user',
+          parts: [{
+            text: 'Start system analysis'
+          }]
+        }
+      };
+
+      // Send the analysis request
+      const response = await this.http.post<ADKResponse[]>(
+        `${this.apiUrl}/run`,
+        request
+      ).toPromise();
+
+      return response || [];
+    } catch (error) {
+      console.error('Analysis error:', error);
+      throw error;
+    } finally {
+      this.analysisInProgress.next(false);
+    }
+  }
+
+  // Method to send a message using the run endpoint
+  async sendMessage(message: string): Promise<ADKResponse[]> {
+    await this.ensureSession();
+
+    const request: ADKRequest = {
+      appName: this.appName,
+      userId: this.userId,
+      sessionId: this.sessionId,
       newMessage: {
         role: 'user',
         parts: [{
-          text: `Use the ${agentName} agent to: ${userInput}`
+          text: message
         }]
       }
-    } as any; // Remove appName, userId, sessionId
-    try {
-      const response = await this.http.post<ADKEvent[]>(`${this.baseUrl}/run`, request).toPromise();
-      if (response) {
-        return this.processADKResponse(response, agentName);
-      } else {
-        return { result: 'No response from agent' };
-      }
-    } catch (error) {
-      console.error('Error running agent:', error);
-      throw error;
-    }
-  }
-
-  async runAgentStreamingWithPayload(payload: { newMessage: { role: string; parts: { text: string }[] } }): Promise<Observable<ADKEvent>> {
-    // Only send the payload as provided
-    const request = {
-      ...payload,
-      streaming: false
     };
-    return this.http.post<ADKEvent>(`${this.baseUrl}/run_sse`, request).pipe(
-      catchError(error => {
-        console.error('Error in streaming agent:', error);
-        return throwError(error);
-      })
-    );
+
+    const response = await this.http.post<ADKResponse[]>(
+      `${this.apiUrl}/run`,
+      request
+    ).toPromise();
+
+    return response || [];
   }
 
-  private processADKResponse(events: ADKEvent[], agentName: string): any {
-    if (!events || events.length === 0) {
-      return { result: 'No response from agent' };
-    }
-
-    // Find the final text response
-    const finalEvent = events.find(event => 
-      event.content.parts.some(part => part.text) && 
-      event.author === agentName
-    );
-
-    if (finalEvent) {
-      const textPart = finalEvent.content.parts.find(part => part.text);
-      return {
-        result: textPart?.text || 'No text response',
-        events: events,
-        agent: agentName,
-        timestamp: finalEvent.timestamp
-      };
-    }
-
-    // If no text response, return the last event
-    const lastEvent = events[events.length - 1];
-    return {
-      result: JSON.stringify(lastEvent),
-      events: events,
-      agent: agentName,
-      timestamp: lastEvent.timestamp
-    };
-  }
-
-  // Helper method to get session info
-  async getSessionInfo(): Promise<ADKSession | null> {
-    try {
-      const sessionUrl = `${this.baseUrl}/apps/${this.appName}/users/${this.currentUserId}/sessions/${this.currentSessionId}`;
-      const session = await this.http.get<ADKSession>(sessionUrl).toPromise();
-      return session || null;
-    } catch (error) {
-      console.error('Error getting session info:', error);
-      return null;
-    }
-  }
-
-  // Helper method to delete session
-  async deleteSession(): Promise<void> {
-    const sessionUrl = `${this.baseUrl}/apps/${this.appName}/users/${this.currentUserId}/sessions/${this.currentSessionId}`;
-    await this.http.delete(sessionUrl).toPromise();
+  getAnalysisStatus(): Observable<boolean> {
+    return this.analysisInProgress$;
   }
 } 

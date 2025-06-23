@@ -1,15 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { AgentService } from './agent.service';
-
-export interface AgentResponse {
-  agent: string;
-  content: string;
-  timestamp: Date;
-  structuredData?: any;
-  confidence?: number;
-  toolsUsed?: string[];
-}
+import { ADKResponse, ADKMessagePart, ADKActions } from './adk-interfaces';
 
 export interface Message {
   role: 'user' | 'assistant' | 'thinking' | 'transfer' | 'error';
@@ -19,6 +11,7 @@ export interface Message {
   structuredData?: any;
   confidence?: number;
   toolsUsed?: string[];
+  showRawData?: boolean;
 }
 
 @Injectable({
@@ -43,6 +36,7 @@ export class ChatService {
   async initSession(): Promise<void> {
     try {
       this.isLoading$.next(true);
+      await this.agentService.ensureSession();
     } catch (err: any) {
       console.error('Session initialization failed:', err);
       this.addMessage('error', 'Error: Could not start a session with the backend.');
@@ -62,23 +56,82 @@ export class ChatService {
     this.messages$.next([...this.messages$.getValue(), userMessage]);
 
     try {
-      const payload = {
-        newMessage: {
-          role: 'user',
-          parts: [
-            { text: userInput }
-          ]
-        }
-      };
-      const response = await this.agentService.runAgentWithPayload(payload);
-      // Parse the response
-      const agentResponse = this.parseAgentResponse(response, agent || this.currentAgent$.value);
-      // Add assistant message with structured data
-      this.addMessage('assistant', agentResponse.content, agent || this.currentAgent$.value, agentResponse.structuredData, agentResponse.confidence, agentResponse.toolsUsed);
-      // Determine next agent in workflow
-      const nextAgent = this.getNextAgentInWorkflow(agent || this.currentAgent$.value);
-      if (nextAgent) {
-        this.addMessage('transfer', `Transferring to ${this.getAgentDisplayName(nextAgent)} for next steps...`, nextAgent);
+      await this.agentService.ensureSession();
+      const response = await this.agentService.sendMessage(userInput);
+      
+      if (Array.isArray(response)) {
+        response.forEach((adkResp: any) => {
+          if (adkResp.content && Array.isArray(adkResp.content.parts)) {
+            adkResp.content.parts.forEach((part: any) => {
+              if (typeof part.text === 'string') {
+                // Check for JSON code block
+                const jsonMatch = part.text.match(/```json\n([\s\S]*?)```/);
+                let structuredData = undefined;
+                if (jsonMatch) {
+                  try {
+                    structuredData = JSON.parse(jsonMatch[1]);
+                  } catch {}
+                }
+                this.addMessage(
+                  'assistant',
+                  part.text,
+                  adkResp.author,
+                  structuredData,
+                  undefined,
+                  undefined,
+                  new Date(adkResp.timestamp * 1000)
+                );
+              } else if (part.functionCall && part.functionCall.name) {
+                this.addMessage(
+                  'transfer',
+                  `Transferring to ${part.functionCall.args?.agent_name || part.functionCall.name}...`,
+                  adkResp.author,
+                  undefined,
+                  undefined,
+                  undefined,
+                  new Date(adkResp.timestamp * 1000)
+                );
+              } else if (part.functionResponse && part.functionResponse.name) {
+                this.addMessage(
+                  'transfer',
+                  `Transfer to ${part.functionResponse.name.replace('transfer_to_', '')} complete.`,
+                  adkResp.author,
+                  undefined,
+                  undefined,
+                  undefined,
+                  new Date(adkResp.timestamp * 1000)
+                );
+              } else if (part.functionResponse && part.functionResponse.response) {
+                let structuredData = undefined;
+                const result = part.functionResponse.response.result;
+                if (typeof result === 'string' && result.trim().startsWith('[')) {
+                  try {
+                    structuredData = JSON.parse(result);
+                  } catch {}
+                }
+                this.addMessage(
+                  'assistant',
+                  '', // No text, just structured data
+                  adkResp.author,
+                  structuredData,
+                  undefined,
+                  undefined,
+                  new Date(adkResp.timestamp * 1000)
+                );
+              } else if (typeof part === 'object') {
+                this.addMessage(
+                  'assistant',
+                  '',
+                  adkResp.author,
+                  part,
+                  undefined,
+                  undefined,
+                  new Date(adkResp.timestamp * 1000)
+                );
+              }
+            });
+          }
+        });
       }
     } catch (err: any) {
       console.error('Error processing message:', err);
@@ -111,7 +164,7 @@ export class ChatService {
     return 'detector';
   }
 
-  private parseAgentResponse(result: any, agentName: string): AgentResponse {
+  private parseAgentResponse(result: any, agentName: string): ADKResponse {
     let content = '';
     let structuredData = null;
     let confidence = null;
@@ -189,13 +242,15 @@ export class ChatService {
       }
     }
 
+    // Return a valid ADKResponse object
     return {
-      agent: agentName,
-      content: content || 'Analysis completed',
-      timestamp: new Date(),
-      structuredData,
-      confidence,
-      toolsUsed
+      content: { parts: [{ text: content || 'Analysis completed' }], role: 'model' },
+      invocationId: '',
+      author: agentName,
+      actions: { stateDelta: {}, artifactDelta: {}, requestedAuthConfigs: {} },
+      id: '',
+      timestamp: Math.floor(Date.now() / 1000),
+      longRunningToolIds: []
     };
   }
 
@@ -308,20 +363,19 @@ export class ChatService {
     agent?: string, 
     structuredData?: any, 
     confidence?: number, 
-    toolsUsed?: string[]
+    toolsUsed?: string[],
+    timestamp?: Date
   ): void {
-    const message: Message = {
+    const msg: Message = {
       role,
       content,
-      agent,
-      timestamp: new Date(),
+      agent: agent ?? '',
+      timestamp: timestamp || new Date(),
       structuredData,
       confidence,
       toolsUsed
     };
-    
-    const currentMessages = this.messages$.value;
-    this.messages$.next([...currentMessages, message]);
+    this.messages$.next([...this.messages$.getValue(), msg]);
   }
 
   clearMessages(): void {
@@ -330,5 +384,35 @@ export class ChatService {
 
   getAgentWorkflow() {
     return this.agentWorkflow;
+  }
+
+  streamAgentResponseSSE(payload: any): Observable<any> {
+    return new Observable(observer => {
+      // Ensure session before making the request
+      this.agentService.ensureSession().then(() => {
+        const sessionInfo = this.agentService.getSessionInfo();
+        const fullPayload = {
+          ...sessionInfo,
+          ...payload
+        };
+
+        fetch('http://localhost:8000/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(fullPayload)
+        })
+          .then(async response => {
+            if (!response.ok) throw new Error('Network response was not ok');
+            const data = await response.json();
+            observer.next(data);
+            observer.complete();
+          })
+          .catch(error => {
+            observer.error(error);
+          });
+      }).catch(error => {
+        observer.error(error);
+      });
+    });
   }
 } 
