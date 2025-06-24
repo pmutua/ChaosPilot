@@ -9,7 +9,7 @@ from google.adk.runners import Runner
 from google.adk.sessions import DatabaseSessionService
 from google.genai import types
 
-from .config import APP_NAME, MODEL
+from .config import APP_NAME, MODEL, GEMINI_MODEL_PATTERN, AZURE_OPENAI_MODEL_PATTERN
 from .sub_agents.action_recommender.agent import action_recommender_agent
 from .sub_agents.detector.agent import detector_agent
 from .sub_agents.fixer.agent import fixer_agent
@@ -17,8 +17,6 @@ from .sub_agents.notifier.agent import notifier_agent
 from .sub_agents.planner.agent import planner_agent
 
 # --- Constants ---
-AZURE_OPENAI_MODEL_PATTERN = r"\bazure\S*"
-GEMINI_MODEL_PATTERN = r"\bgemini\S*"
 DB_URL = "sqlite:///./agent_Manager_data.db"
 
 # --- Model Selection ---
@@ -358,3 +356,7 @@ Response structure:
     }
 }
 """
+
+if __name__ == "__main__":
+    print("ERROR: Do not run agent.py directly. Use the main application entry point (e.g., main.py) from the project root.")
+    exit(1)
