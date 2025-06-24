@@ -9,7 +9,7 @@ AGENT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Example session DB URL (e.g., SQLite)
 # SESSION_DB_URL = "sqlite:///./sessions.db"
 # Example allowed origins for CORS
-ALLOWED_ORIGINS = ["https://chaos-pilot.vercel.app", "http://localhost:4200"]
+# ALLOWED_ORIGINS = ["https://chaos-pilot.vercel.app", "http://localhost:4200"]
 # Set web=True if you intend to serve a web interface, False otherwise
 SERVE_WEB_INTERFACE = True
 
@@ -19,7 +19,7 @@ SERVE_WEB_INTERFACE = True
 app = get_fast_api_app(
     CORMiddleware,
     agents_dir=AGENT_DIR,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=['*'],
     web=SERVE_WEB_INTERFACE,
 )
 
