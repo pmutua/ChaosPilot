@@ -1,0 +1,632 @@
+manifest:
+  version: "0.1.3"
+  schema: https://a2as.org/cert/schema
+  subject:
+    name: pmutua/chaospilot
+    source: https://github.com/pmutua/chaospilot
+    branch: master
+    commit: "99cf77c2"
+    scope: [agent_manager/agent.py, agent_manager/config.py, agent_manager/sub_agents/action_recommender/agent.py, agent_manager/sub_agents/detector/agent.py,
+      agent_manager/sub_agents/fixer/agent.py, agent_manager/sub_agents/notifier/agent.py, agent_manager/sub_agents/planner/agent.py]
+  issued:
+    by: A2AS.org
+    at: '2026-02-11T16:46:23Z'
+    url: https://a2as.org/certified/agents/pmutua/chaospilot
+  signatures:
+    digest: sha256:5O0w-o2H4z2KLwr0dlZvp57De6YQXQPwnOsJm1DvcvE
+    key: ed25519:iZtsV5a9oGABEjOPwBfwjwNJSuFEbbBGtXDKybKafeA
+    sig: ed25519:fvVkTpMpdwAO_U_92E-eAoHZkwPXanoOLm4t1d30Ky-EY6IpOpCRgsGpXovL4i0CQwmHkzK--nPgvyV6_LCkDw
+
+agents:
+  action_recommender_agent:
+    type: instance
+    models: [azure/gpt-4o]
+    tools: [tools]
+    mcp: [action_recommender_toolset]
+    params:
+      name: action_recommender
+      description: Action recommender using only schema-compliant fields from BigQuery logs.
+  detector_agent.0:
+    type: instance
+    models: [azure/gpt-4o]
+    tools: [detector_toolset]
+    mcp: [detector_toolset]
+    params:
+      name: detector
+      output_key: detector_summary
+      description: The Detector Agent is an AI-powered bot that analyzes chaos logs in BigQuery to identify critical errors,
+        failure patterns, and system anomalies in real time.
+      instruction: [You are the Detector agent., Your task is to analyze chaos logs and telemetry data stored in the BigQuery
+          table `aceti-462716.bqexport.chaospilot_fake_logs_20250620`., 'Use ONLY the following fields from the dataset (nested
+          inside `jsonPayload` unless specified otherwise):', '- `jsonPayload.experiment_id`', '- `jsonPayload.agent_id`',
+        '- `jsonPayload.message`', '- `jsonPayload.region`', '- `jsonPayload.timestamp`', '- `severity` (top-level)', '- `jsonPayload.details.user_id`',
+        '- `jsonPayload.httprequest.*`', '- `jsonPayload.status_code`', Respond **only** when explicitly asked by the user.
+          Do not trigger analysis independently., 'You MUST output your response in **JSON format only** — with no explanation,
+          logs, or comments before or after. The structure should match the sample below.', '**Additional Requirements:**',
+        '- Detect and report trends over time (e.g., compare error rates to previous periods).', '- For each anomaly, include
+          a `confidence_score` (0-1).', '- Allow for customizable severity thresholds (e.g., only report if CRITICAL > N in
+          last X minutes; use defaults if not specified).', '- Add a `potential_root_cause` field if enough context is available,
+          otherwise set to null.', '- If data is insufficient or ambiguous, set `ambiguous` to true and explain which fields
+          are missing.', '- Do NOT invent data. Only use what is available from the tools and schema.', 'Ensure all fields
+          are extracted using the correct BigQuery schema. Format timestamps in ISO 8601 (UTC). Aggregate, count, group, and
+          deduplicate where necessary.', 'Example output:', '```json', '{', '"report_generated_at": "2025-06-20T10:15:00Z",',
+        '"total_error_logs": 3,', '"environments_considered": ["prod"],', '"errors_grouped_by_region": {', '"us-central1":
+          {', '"CRITICAL": 2,', '"ERROR": 1', '}', '},', '"errors_grouped_by_severity": {', '"CRITICAL": 2,', '"ERROR": 1',
+        '},', '"most_frequent_error_types": [', '{', '"failure_type": "database crash",', '"count": 2,', '"regions": ["us-central1"]',
+        '},', '{', '"failure_type": "out of memory",', '"count": 1,', '"regions": ["us-central1"]', '}', '],', '"recent_errors":
+          [', '{', '"experiment_id": "exp4851",', '"failure_type": "database crash",', '"severity": "CRITICAL",', '"impact_level":
+          "high",', '"region": "us-central1",', '"timestamp": "2025-06-20T01:14:59.147Z",', '"confidence_score": 0.95,', '"potential_root_cause":
+          "Database connection timeout"', '},', '{', '"experiment_id": "exp4851",', '"failure_type": "out of memory",', '"severity":
+          "ERROR",', '"impact_level": "medium",', '"region": "us-central1",', '"timestamp": "2025-06-20T00:12:45.983Z",',
+        '"confidence_score": 0.80,', '"potential_root_cause": null', '}', '],', '"trend_analysis": {', '"error_rate_change":
+          "+15%",', '"comparison_period": "previous_24h"', '},', '"ambiguous": false', '}', '```', ⚠️ Do not include fields
+          that are not present in the BigQuery schema., ⚠️ Only use jsonPayload keys for nested values., ⚠️ Do not invent
+          values. Use real data and proper aggregation from the query tools.]
+      instance: detector_agent
+  detector_agent.1:
+    type: instance
+    models: [azure/gpt-4o]
+    tools: [detector_toolset]
+    mcp: [detector_toolset]
+    params:
+      name: enhanced_detector
+      description: Advanced log analysis agent with pattern recognition, anomaly detection, and intelligent classification
+      instance: detector_agent
+  fixer_agent:
+    type: instance
+    models: [azure/gpt-4o]
+    params:
+      name: fixer
+      output_key: fixer_summary
+      description: Agent responsible for advising the possible fixes for the actions recommended by the action recommender
+        agent then send to notifier agent.
+      instruction: [You are the Fixer Agent., 'Your task is to:', '- Recommend safe, cost-efficient fixes for high-confidence
+          recovery scenarios', '- For each fix, include:', '- Cost estimate (if data available)', '- Fallback action if the
+          fix fails', '- Suggested monitoring metrics to watch after applying the fix', '- Escalate only when ambiguity, conflict,
+          or high risk is detected', '- If ambiguity is detected or information is missing, specify which context is missing
+          and suggest a query to resolve it', '- Do NOT invent data. Only use what is available from the tools and schema.',
+        The user will provide the action recommendations in their message. Look for JSON content or structured action recommendations
+          information in the user's message., Output *only* in JSON format., Do not add any other text before or after the
+          json., 'Output example:', '```json', '{', '"fix_execution_reviewed_at": "2025-06-18T22:30:00Z",', '"source_actions_id":
+          "2025-06-18T22:25:00Z",', '"safe_to_execute_tasks": [', '{', '"task_id": "task-001",', '"description": "Restart
+          the affected disk subsystem in us-central1",', '"execution_mode": "auto",', '"justification": "Low risk. Task steps
+          are clearly defined, target is infrastructure, and estimated time is within tolerance.",', '"expected_cost_impact":
+          "minimal",', '"cost_estimate_usd": 10.0,', '"risk_level": "low",', '"fallback_action": "Escalate to SRE if restart
+          fails",', '"monitoring_metrics": ["disk_health", "error_rate"]', '}', '],', '"escalation_required": [', '{', '"task_id":
+          "task-002",', '"description": "Shift workloads from affected zone to healthy zone in us-central1",', '"reason":
+          "Potential conflict: current orchestration health state unknown. Risk of traffic instability or cascading failure.",',
+        '"recommended_escalation_team": "SRE escalation group",', '"urgency": "high",', '"risk_level": "moderate",', '"ambiguity_detected":
+          [', '"Unclear zone health status",', '"Potential traffic routing conflict"', '],', '"missing_context_query": "Query
+          orchestration layer for current zone health status."', '}', '],', '"summary": {', '"total_tasks_analyzed": 2,',
+        '"tasks_safe_to_execute": 1,', '"tasks_escalated": 1', '},', '"ambiguous": false', '}']
+  notifier_agent:
+    type: instance
+    models: [azure/gpt-4o]
+    params:
+      name: notifier
+      description: Agent responsible for escalating unresolved, risky, or critical chaos engineering issues to human stakeholders
+        through structured alerts.
+      instruction: ['You are the Notifier Agent, a human escalation interface in a distributed resilience automation system.',
+        'Your task is to generate clear, actionable alerts for human operators based on system events and agent outputs.',
+        You will receive structured inputs and must format them into human-readable alerts., The user will provide the fixer
+          summary or other agent outputs in their message. Look for JSON content or structured information in the user's message.,
+        '**Requirements:**', '- For each alert, include:', '- Alert severity level (info, warning, critical)', '- Actionable
+          next steps for the operator', '- Notification channel (Slack, email, dashboard, etc.; use default if not specified)',
+        '- If multiple alerts are generated in a short period, include a summary of recent incidents.', '- If information
+          is missing, flag ambiguity and specify which fields are missing.', '- Do NOT invent data. Only use what is available
+          from the tools and schema.', Output *only* in human readable friendly text., Do not add any other text before or
+          after the code block., 'Output example:', '```text', '📢 **Incident Recovery Update – 2025-06-18 22:35 UTC**', 🔧
+          **Auto-Approved Task**, 'Task ID: `task-001`', '**Action**: Restart the affected disk subsystem', '**Region**: us-central1',
+        '**Execution Mode**: Auto', '**Risk Level**: Low', '**Cost Impact**: Minimal', '**Severity**: info', '**Notification
+          Channel**: Slack', '**Summary**: This recovery action has been approved for automatic execution. The task is low-risk
+          and targets the infrastructure layer. No operator intervention is required at this time.', '**Next Steps**: Monitor
+          disk health metrics for 10 minutes post-restart.', '---', ⚠️ **Escalation Required**, 'Task ID: `task-002`', '**Action**:
+          Shift workloads from affected zone to a healthy zone', '**Region**: us-central1', '**Urgency**: High', '**Risk Level**:
+          Moderate', '**Severity**: critical', '**Notification Channel**: Email', '**Escalation Team**: SRE Escalation Group',
+        '**Reason**:', '- The current health status of the orchestration layer is unknown', '- Shifting workloads without
+          confirmation could cause traffic instability or cascading failures', '**Next Steps**: Please review the task, confirm
+          zone health, and acknowledge escalation in the incident dashboard.', '---', 🧾 **Summary of Recent Incidents**, '-
+          1 task approved for automatic execution', '- 1 task requires manual review and escalation', '- Generated from the
+          recovery plan created at: `2025-06-18 22:20 UTC`', 'Please respond promptly if escalation is needed, or monitor
+          for confirmation of successful auto-recovery.']
+  planner_agent:
+    type: instance
+    models: [azure/gpt-4o]
+    tools: [planner_toolset]
+    mcp: [planner_toolset]
+    params:
+      name: planner
+      description: Incident response planner using only schema-compliant fields from BigQuery logs.
+  root_agent:
+    type: instance
+    models: [gpt-4o]
+    params:
+      name: agent_manager
+      description: Orchestration layer for the chaos engineering system.
+      sub_agents: [detector_agent, planner_agent, action_recommender_agent, fixer_agent, notifier_agent]
+
+models:
+  azure/gpt-4o:
+    type: function
+    agents: [notifier_agent, action_recommender_agent, fixer_agent, detector_agent.0, detector_agent.1, planner_agent]
+    params:
+      wrapper: LiteLlm
+      model: azure/gpt-4o
+  gpt-4o:
+    type: literal
+    agents: [root_agent]
+    params:
+      alias: [azure/gpt-4o]
+
+tools:
+  detector_toolset:
+    type: mcp
+    agents: [detector_agent.0, detector_agent.1]
+    mcp: [detector_toolset]
+    params:
+      dynamic: "True"
+      mcp_source: detector_toolset
+  planner_toolset:
+    type: mcp
+    agents: [planner_agent]
+    mcp: [planner_toolset]
+    params:
+      dynamic: "True"
+      mcp_source: planner_toolset
+  tools:
+    type: mcp
+    agents: [action_recommender_agent]
+    mcp: [action_recommender_toolset]
+    params:
+      dynamic: "True"
+      mcp_source: action_recommender_toolset
+
+mcp:
+  action_recommender_toolset:
+    type: toolbox
+    url: http:localhost:5000
+    agents: [action_recommender_agent]
+    params:
+      class: ToolboxSyncClient
+      method: load_toolset
+      toolset: action_recommender_toolset
+  detector_toolset:
+    type: toolbox
+    url: http:localhost:5000
+    agents: [detector_agent, detector_agent.1, detector_agent.0]
+    params:
+      class: ToolboxSyncClient
+      method: load_toolset
+      toolset: detector_toolset
+  planner_toolset:
+    type: toolbox
+    url: http:localhost:5000
+    agents: [planner_agent]
+    params:
+      class: ToolboxSyncClient
+      method: load_toolset
+      toolset: planner_toolset
+
+teams:
+  root_agent:
+    type: hierarchy
+    agents: [root_agent, detector_agent, planner_agent, action_recommender_agent, fixer_agent, notifier_agent]
+
+imports:
+  '*': agent_manager.config.*
+  action_recommender_agent: sub_agents.action_recommender.agent.action_recommender_agent
+  Agent: google.adk.agents.Agent
+  agent: agent
+  Any: typing.Any
+  APP_NAME: config.APP_NAME
+  asyncio: asyncio
+  AZURE_OPENAI_MODEL_PATTERN: config.AZURE_OPENAI_MODEL_PATTERN
+  DatabaseSessionService: google.adk.sessions.DatabaseSessionService
+  datetime: datetime.datetime
+  detector_agent: sub_agents.detector.agent.detector_agent
+  Dict: typing.Dict
+  Enum: enum.Enum
+  fixer_agent: sub_agents.fixer.agent.fixer_agent
+  GEMINI_MODEL_PATTERN: config.GEMINI_MODEL_PATTERN
+  json: json
+  List: typing.List
+  LiteLlm: google.adk.models.lite_llm.LiteLlm
+  load_dotenv: dotenv.load_dotenv
+  MODEL: config.MODEL
+  notifier_agent: sub_agents.notifier.agent.notifier_agent
+  Optional: typing.Optional
+  os: os
+  planner_agent: sub_agents.planner.agent.planner_agent
+  re: re
+  Runner: google.adk.runners.Runner
+  timedelta: datetime.timedelta
+  TOOLBOX_URL: agent_manager.config.TOOLBOX_URL
+  ToolboxSyncClient: toolbox_core.ToolboxSyncClient
+  types: google.genai.types
+  uuid: uuid
+
+functions:
+  __init__:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [self]
+  _analyze_trends:
+    type: sync
+    module: agent_manager.sub_agents.detector.agent
+    args: [self, log_data]
+    params:
+      returns: List[Dict]
+  _assess_action_risks:
+    type: sync
+    module: agent_manager.sub_agents.action_recommender.agent
+    args: [self, actions]
+    params:
+      returns: Dict
+  _assess_business_impact:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [self, detector_data]
+    params:
+      returns: Dict
+  _assess_data_risk:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [self, patterns]
+    params:
+      returns: str
+  _assess_impact:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [self, detector_data]
+    params:
+      returns: Dict
+  _assess_service_degradation:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [self, patterns]
+    params:
+      returns: str
+  _calculate_error_trend:
+    type: sync
+    module: agent_manager.sub_agents.detector.agent
+    args: [self, log_data]
+    params:
+      returns: Dict
+  _calculate_success_probability:
+    type: sync
+    module: agent_manager.sub_agents.action_recommender.agent
+    args: [self, actions]
+    params:
+      returns: float
+  _classify_incident:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [self, detector_data]
+    params:
+      returns: str
+  _create_automation_context:
+    type: sync
+    module: agent_manager.sub_agents.action_recommender.agent
+    args: [self, actions]
+    params:
+      returns: Dict
+  _create_execution_plan:
+    type: sync
+    module: agent_manager.sub_agents.action_recommender.agent
+    args: [self, actions]
+    params:
+      returns: List[Dict]
+  _create_rollback_strategy:
+    type: sync
+    module: agent_manager.sub_agents.action_recommender.agent
+    args: [self, actions]
+    params:
+      returns: Dict
+  _create_validation_steps:
+    type: sync
+    module: agent_manager.sub_agents.action_recommender.agent
+    args: [self, action]
+    params:
+      returns: List[str]
+  _define_monitoring_requirements:
+    type: sync
+    module: agent_manager.sub_agents.action_recommender.agent
+    args: [self, actions]
+    params:
+      returns: List[str]
+  _define_rollback_trigger:
+    type: sync
+    module: agent_manager.sub_agents.action_recommender.agent
+    args: [self, action]
+    params:
+      returns: Dict
+  _define_success_criteria:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [self, incident_type]
+    params:
+      returns: List[str]
+  _detect_anomalies:
+    type: sync
+    module: agent_manager.sub_agents.detector.agent
+    args: [self, log_data]
+    params:
+      returns: List[Dict]
+  _determine_priority:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [self, detector_data]
+    params:
+      returns: str
+  _determine_severity:
+    type: sync
+    module: agent_manager.sub_agents.detector.agent
+    args: [self, message]
+    params:
+      returns: str
+  _determine_update_frequency:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [self, priority]
+    params:
+      returns: str
+  _estimate_affected_users:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [self, patterns]
+    params:
+      returns: str
+  _estimate_recovery_time:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [self, patterns, anomalies]
+    params:
+      returns: str
+  _estimate_resolution_time:
+    type: sync
+    module: agent_manager.sub_agents.action_recommender.agent
+    args: [self, actions]
+    params:
+      returns: str
+  _find_correlations:
+    type: sync
+    module: agent_manager.sub_agents.detector.agent
+    args: [self, patterns]
+    params:
+      returns: List[Dict]
+  _find_matching_playbook:
+    type: sync
+    module: agent_manager.sub_agents.action_recommender.agent
+    args: [self, patterns, incident_type]
+    params:
+      returns: Dict
+  _generate_action_reasoning:
+    type: sync
+    module: agent_manager.sub_agents.action_recommender.agent
+    args: [self, action, patterns]
+    params:
+      returns: str
+  _generate_action_recommendations:
+    type: sync
+    module: agent_manager.sub_agents.action_recommender.agent
+    args: [self, playbook, priority, patterns]
+    params:
+      returns: List[Dict]
+  _generate_contextual_actions:
+    type: sync
+    module: agent_manager.sub_agents.action_recommender.agent
+    args: [self, patterns, priority]
+    params:
+      returns: List[Dict]
+  _generate_recommendations:
+    type: sync
+    module: agent_manager.sub_agents.detector.agent
+    args: [self, analysis]
+    params:
+      returns: List[Dict]
+  _generate_root_cause_hypothesis:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [self, detector_data]
+    params:
+      returns: List[Dict]
+  _identify_affected_services:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [self, detector_data]
+    params:
+      returns: List[str]
+  _identify_dependencies:
+    type: sync
+    module: agent_manager.sub_agents.action_recommender.agent
+    args: [self, action, all_actions]
+    params:
+      returns: List[str]
+  _prioritize_actions:
+    type: sync
+    module: agent_manager.sub_agents.action_recommender.agent
+    args: [self, actions, incident_priority]
+    params:
+      returns: List[Dict]
+  _suggest_automated_actions:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [self, incident_analysis]
+    params:
+      returns: List[Dict]
+  analyze_incident_context:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [self, detector_data]
+    params:
+      returns: Dict
+  analyze_incident_for_actions:
+    type: sync
+    module: agent_manager.sub_agents.action_recommender.agent
+    args: [self, planner_data]
+    params:
+      returns: Dict
+  analyze_log_patterns:
+    type: sync
+    module: agent_manager.sub_agents.detector.agent
+    args: [self, log_data]
+    params:
+      returns: Dict
+  analyze_logs_comprehensive:
+    type: sync
+    module: agent_manager.sub_agents.detector.agent
+    args: [log_data]
+    params:
+      returns: str
+  cleanup_session:
+    type: async
+    module: agent_manager.agent
+    args: [self, app_name, user_id, session_id]
+  cleanup_user_sessions:
+    type: async
+    module: agent_manager.agent
+    args: [app_name, user_id]
+    params:
+      returns: Dict
+  cleanup_user_sessions_sync:
+    type: sync
+    module: agent_manager.agent
+    args: [app_name, user_id]
+    params:
+      returns: Dict
+  create_intelligent_response_plan:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [detector_data]
+    params:
+      returns: str
+  create_response_plan:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [self, incident_analysis]
+    params:
+      returns: Dict
+  detect_real_time_anomalies:
+    type: sync
+    module: agent_manager.sub_agents.detector.agent
+    args: [log_stream]
+    params:
+      returns: str
+  dict_to_content:
+    type: sync
+    module: agent_manager.agent
+    args: [new_message_dict]
+    params:
+      returns: types.Content
+  get_active_session_count:
+    type: sync
+    module: agent_manager.agent
+    args: [self]
+    params:
+      returns: int
+  get_or_create_session:
+    type: async
+    module: agent_manager.agent
+    args: [self, app_name, user_id, session_id]
+    params:
+      returns: tuple
+  get_session_info:
+    type: async
+    module: agent_manager.agent
+    args: [app_name, user_id, session_id]
+    params:
+      returns: Dict
+  get_session_info_sync:
+    type: sync
+    module: agent_manager.agent
+    args: [app_name, user_id, session_id]
+    params:
+      returns: Dict
+  planner_summary:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [logs]
+    params:
+      returns: dict
+  recommend_actions_from_logs:
+    type: sync
+    module: agent_manager.sub_agents.action_recommender.agent
+    args: [logs]
+    params:
+      returns: dict
+  run_agent_with_payload:
+    type: sync
+    module: agent_manager.agent
+    args: [payload]
+    params:
+      returns: Dict
+  run_with_payload:
+    type: async
+    module: agent_manager.agent
+    args: [payload]
+    params:
+      returns: Dict
+  suggest_proactive_measures:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [historical_data]
+    params:
+      returns: str
+  summarize_incidents_by_agent_and_experiment:
+    type: sync
+    module: agent_manager.sub_agents.planner.agent
+    args: [logs]
+    params:
+      returns: dict
+  update_session_state:
+    type: async
+    module: agent_manager.agent
+    args: [self, app_name, user_id, session_id, state_updates]
+  validate_payload:
+    type: sync
+    module: agent_manager.agent
+    args: [payload]
+    params:
+      returns: Dict
+
+variables:
+  APP_NAME:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [agent_manager.config]
+  AZURE_API_BASE:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [agent_manager.sub_agents.action_recommender.agent, agent_manager.config]
+  AZURE_API_KEY:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [agent_manager.sub_agents.action_recommender.agent, agent_manager.config]
+  AZURE_API_VERSION:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [agent_manager.sub_agents.action_recommender.agent, agent_manager.config]
+  GOOGLE_API_KEY:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [agent_manager.config]
+  MODEL:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [agent_manager.config]
+  TOOLBOX_URL:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [agent_manager.config]
+  VERSION:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [agent_manager.config]
